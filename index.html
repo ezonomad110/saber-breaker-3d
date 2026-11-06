@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v1.0 RAIL</title>
+<title>SABER BREAKER 3D v1.1 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -50,7 +50,7 @@
   <div class="hudBox"><small>HITS</small><span id="hitsVal">0</span></div>
 </div>
 <div id="shieldWrap"><small>SHIELD</small><div id="shieldBarBg"><div id="shieldBar"></div></div></div>
-<div id="bossWrap"><small>STAR DESTROYER</small><div id="bossBarBg"><div id="bossBar"></div></div></div>
+<div id="bossWrap"><small id="bossLabel">STAR DESTROYER</small><div id="bossBarBg"><div id="bossBar"></div></div></div>
 <div id="dmgFlash"></div>
 <div id="popLayer"></div>
 <div id="stickBase"><div id="stickKnob"></div></div>
@@ -67,7 +67,7 @@
 
 <div class="overlay" id="titlePanel">
   <h1>SABER BREAKER<span>— RAIL RUN —</span></h1>
-  <p>自動で前進するレールシューター。<br>左スティックで操縦、右ボタン長押しでレーザー連射。<br>リングをくぐるとシールド回復。最後に待ち受けるのは…</p>
+  <p>自動で前進するレールシューター。<br>左スティックで操縦、右ボタン長押しでレーザー連射。<br>リングをくぐるとシールド回復。ボスは<b>弱点</b>しか効かない。<br>全2ステージ、間はハイパードライブで繋ぐ。</p>
   <button class="bigBtn" id="startBtn">▶ LAUNCH</button>
 </div>
 <div class="overlay" id="resultPanel">
@@ -101,6 +101,8 @@ const sndLaser = () => beep(920, 0.09, 'square', 0.028, -620);
 const sndBoom = big => { beep(130, 0.3, 'sawtooth', 0.07, -80); if (big) beep(62, 0.55, 'square', 0.07, -28); };
 const sndHurt = () => beep(190, 0.22, 'sawtooth', 0.07, -80);
 const sndRing = () => { beep(880, 0.09, 'sine', 0.05); setTimeout(() => beep(1320, 0.12, 'sine', 0.05), 70); };
+const sndGuard = () => beep(240, 0.05, 'square', 0.02, -60);
+const sndHyper = () => { beep(180, 1.9, 'sawtooth', 0.05, 1050); beep(90, 1.9, 'square', 0.04, 500); };
 
 /* ============================== scene ============================== */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -115,7 +117,6 @@ scene.add(new THREE.HemisphereLight(0x8899ff, 0x0a0618, 1.0));
 const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(6, 14, 8); scene.add(key);
 const rim = new THREE.DirectionalLight(0x38bdf8, 0.9); rim.position.set(-8, 6, -14); scene.add(rim);
 
-/* starfield (recycled around the player) */
 const starGeo = new THREE.BufferGeometry();
 {
   const n = 800, pos = new Float32Array(n * 3);
@@ -124,10 +125,52 @@ const starGeo = new THREE.BufferGeometry();
 }
 const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xbfe9ff, size: 0.7 }));
 scene.add(stars);
-/* distant planet */
 const planet = new THREE.Mesh(new THREE.SphereGeometry(26, 24, 18), new THREE.MeshStandardMaterial({ color: 0x7c5cbf, roughness: 0.9, emissive: 0x1c1038 }));
 planet.position.set(-58, 26, -190);
 scene.add(planet);
+
+/* hyperdrive streaks */
+const streaks = new THREE.Group();
+{
+  const mat = new THREE.MeshBasicMaterial({ color: 0xa5f3fc, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (let i = 0; i < 130; i++){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 7), mat);
+    const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 26;
+    m.position.set(Math.cos(a) * r, 6.5 + Math.sin(a) * r * 0.7, -Math.random() * 160);
+    streaks.add(m);
+  }
+}
+streaks.visible = false;
+scene.add(streaks);
+
+/* trench (stage 2): recycled wall segments */
+const trench = new THREE.Group();
+const trenchSegs = [];
+{
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x3d4450, metalness: 0.4, roughness: 0.6 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x2c313a, metalness: 0.4, roughness: 0.7 });
+  const trimMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+  const trimMat2 = new THREE.MeshBasicMaterial({ color: 0xf472b6 });
+  for (let i = 0; i < 9; i++){
+    const seg = new THREE.Group();
+    for (const side of [-1, 1]){
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(2.2, 15, 30), wallMat);
+      wall.position.set(side * 9.2, 6, 0);
+      const trim = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 30), side < 0 ? trimMat : trimMat2);
+      trim.position.set(side * 8.0, 11.8, 0);
+      seg.add(wall, trim);
+    }
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(20, 1, 30), floorMat);
+    floor.position.set(0, -0.6, 0);
+    const ceil = new THREE.Mesh(new THREE.BoxGeometry(20, 1, 30), wallMat);
+    ceil.position.set(0, 14.2, 0);
+    seg.add(floor, ceil);
+    seg.position.z = -i * 30;
+    trench.add(seg); trenchSegs.push(seg);
+  }
+}
+trench.visible = false;
+scene.add(trench);
 
 /* ============================== player ship ============================== */
 const ship = new THREE.Group();
@@ -144,9 +187,8 @@ let cannonTips = [];
   const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.30, 12, 10), darkMat);
   cockpit.scale.set(0.9, 0.75, 1.5); cockpit.position.set(0, 0.30, 0.35);
   ship.add(nose, body, stripe, cockpit);
-  const wingMat = hullMat;
   for (const a of [0.5, -0.5]){
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.07, 0.85), wingMat);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.07, 0.85), hullMat);
     wing.rotation.z = a; wing.position.z = 0.55;
     ship.add(wing);
     const tipStripe = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.09, 0.87), accentMat);
@@ -169,7 +211,6 @@ let cannonTips = [];
   }
 }
 scene.add(ship);
-/* reticle */
 const reticle = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.07, 8, 24), new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.9 }));
 scene.add(reticle);
 const reticle2 = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.05, 8, 20), new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.7 }));
@@ -202,9 +243,16 @@ function buildRock(r){
 }
 function buildRing(){
   const g = new THREE.Group();
-  const torus = new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.28, 10, 30), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
-  const glow = new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.55, 10, 30), new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.25 }));
-  g.add(torus, glow);
+  g.add(new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.28, 10, 30), new THREE.MeshBasicMaterial({ color: 0xfacc15 })));
+  g.add(new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.55, 10, 30), new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.25 })));
+  return g;
+}
+function buildTurret(){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.1, 1.7), darkMatE);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.85, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xaab4c2, metalness: 0.5, roughness: 0.35, emissive: 0xef4444, emissiveIntensity: 0.35 }));
+  dome.position.y = 0.5;
+  g.add(base, dome);
   return g;
 }
 function buildBoss(){
@@ -224,20 +272,44 @@ function buildBoss(){
     d.position.set(x, 6.2, 16);
     g.add(d); domes.push(d);
   }
-  g.userData.domes = domes;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(1.9, 16, 12), new THREE.MeshBasicMaterial({ color: 0x4ade80 }));
+  core.position.set(0, 4.2, -6);
+  core.visible = false;
+  const coreGlow = new THREE.Mesh(new THREE.SphereGeometry(2.6, 16, 12), new THREE.MeshBasicMaterial({ color: 0x22ff88, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }));
+  coreGlow.position.copy(core.position);
+  coreGlow.visible = false;
+  g.add(core, coreGlow);
+  g.userData = { domes, core, coreGlow };
+  return g;
+}
+function buildCoreTarget(){
+  const g = new THREE.Group();
+  const wall = new THREE.Mesh(new THREE.CircleGeometry(15, 24), new THREE.MeshStandardMaterial({ color: 0x39424f, metalness: 0.5, roughness: 0.5, side: THREE.DoubleSide }));
+  wall.position.z = -4;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(3.0, 18, 14), new THREE.MeshBasicMaterial({ color: 0x4ade80 }));
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(4.1, 18, 14), new THREE.MeshBasicMaterial({ color: 0x22ff88, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(4.6, 0.22, 8, 28), hullMatE);
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(5.4, 0.18, 8, 28), darkMatE);
+  ring2.rotation.x = Math.PI / 2.4;
+  g.add(wall, core, glow, ring1, ring2);
+  g.userData = { core, glow, ring1, ring2 };
   return g;
 }
 
 /* ============================== game state ============================== */
-const COURSE_LEN = 4200;
+const STAGES = {
+  1: { len: 4200, bx: 11, yMin: 1.4, yMax: 13 },
+  2: { len: 2500, bx: 6.8, yMin: 2.0, yMax: 10.5 },
+};
 const S = {
-  mode: 'title', time: 0,
+  mode: 'title', time: 0, stage: 1,
   px: 0, py: 6.5, tx: 0, ty: 6.5, pz: 0, dist: 0,
   shield: 100, score: 0, hits: 0,
-  fireT: 0, cannonFlip: false, hurtT: 0, dmgFlash: 0,
-  boss: null, bossHp: 0, clearT: 0, eventIdx: 0, rockT: 0,
+  fireT: 0, cannonIdx: 0, hurtT: 0, dmgFlash: 0, guardPopT: 0,
+  boss: null, bossHp: 0, bossMaxHp: 12, bossSwayX: 0,
+  coreFight: null, hyperT: 0, eventIdx: 0, rockT: 0,
 };
-let foes = [], shots = [], ebolts = [], rings = [], rocks = [], booms = [];
+let foes = [], shots = [], ebolts = [], rings = [], rocks = [], turrets = [], booms = [];
 const $ = id => document.getElementById(id);
 function pop(text, color = '#fff', size = 28){
   const d = document.createElement('div');
@@ -252,17 +324,26 @@ function boom(x, y, z, col, scale = 1){
   scene.add(m);
   booms.push({ m, t: 0, scale });
 }
+function bossBarShow(label, hp, max){
+  $('bossWrap').style.display = 'block';
+  $('bossLabel').textContent = label;
+  $('bossBar').style.width = Math.max(0, hp / max * 100) + '%';
+}
 function refreshHud(){
   $('scoreVal').textContent = S.score;
   $('hitsVal').textContent = S.hits;
   $('shieldBar').style.width = Math.max(0, S.shield) + '%';
   $('shieldBar').style.background = S.shield > 50 ? 'linear-gradient(90deg,#22d3ee,#4ade80)' : S.shield > 25 ? 'linear-gradient(90deg,#f59e0b,#facc15)' : 'linear-gradient(90deg,#ef4444,#f87171)';
-  if (S.boss){ $('bossWrap').style.display = 'block'; $('bossBar').style.width = Math.max(0, S.bossHp / 52 * 100) + '%'; $('distVal').textContent = 'BOSS'; }
-  else { $('bossWrap').style.display = 'none'; $('distVal').textContent = Math.max(0, Math.round(COURSE_LEN - S.dist)) + 'm'; }
+  if (S.coreFight) bossBarShow('REACTOR CORE', S.coreFight.hp, 20);
+  else if (S.boss) bossBarShow(S.boss.coreOpen ? 'CORE EXPOSED!' : 'WEAK POINTS: TURRETS', S.bossHp, S.bossMaxHp);
+  else {
+    $('bossWrap').style.display = 'none';
+    $('distVal').textContent = 'ST' + S.stage + ' · ' + Math.max(0, Math.round(STAGES[S.stage].len - S.dist)) + 'm';
+  }
 }
 
-/* course script: distance-triggered events */
-const EVENTS = [
+/* ============================== course events ============================== */
+const EVENTS1 = [
   { at: 200, type: 'chase', n: 3 }, { at: 420, type: 'ring', x: 0, y: 7 },
   { at: 550, type: 'head', n: 3 }, { at: 850, type: 'chase', n: 4 },
   { at: 1150, type: 'ring', x: -5, y: 9 }, { at: 1250, type: 'head', n: 4 },
@@ -272,12 +353,29 @@ const EVENTS = [
   { at: 3250, type: 'chase', n: 5 }, { at: 3550, type: 'ring', x: -4, y: 6 },
   { at: 3700, type: 'head', n: 6 },
 ];
+const EVENTS2 = [
+  { at: 150, type: 'turret', side: -1, y: 3 }, { at: 320, type: 'turret', side: 1, y: 8 },
+  { at: 500, type: 'turret2' }, { at: 680, type: 'ring', x: 0, y: 6 },
+  { at: 820, type: 'turret', side: -1, y: 8 }, { at: 1000, type: 'head', n: 3 },
+  { at: 1180, type: 'turret2' }, { at: 1360, type: 'ring', x: 2, y: 5 },
+  { at: 1520, type: 'turret', side: 1, y: 3 }, { at: 1700, type: 'head', n: 4 },
+  { at: 1900, type: 'turret2' }, { at: 2080, type: 'ring', x: -2, y: 8 },
+  { at: 2240, type: 'turret2' },
+];
 function spawnFoe(kind, x, y, z){
   const mesh = buildTie(kind === 'chase' ? 1.1 : 1.15);
   mesh.position.set(x, y, z);
   if (kind === 'head') mesh.rotation.y = Math.PI;
   scene.add(mesh);
-  foes.push({ kind, x, y, z, hp: kind === 'chase' ? 2 : 1, mesh, phase: Math.random() * 6.28, shootT: 1.5 + Math.random() * 2.5, baseX: x, baseY: y });
+  foes.push({ kind, x, y, z, hp: kind === 'chase' ? 3 : 1, mesh, phase: Math.random() * 6.28, shootT: 1.4 + Math.random() * 1.6, baseX: x, baseY: y, state: 'approach', duelT: 6.5 });
+}
+function spawnTurret(side, y, zOff = 150){
+  const mesh = buildTurret();
+  const x = side * 7.9, z = S.pz - zOff;
+  mesh.position.set(x, y - 0.55, z);
+  if (side > 0) mesh.rotation.y = Math.PI;
+  scene.add(mesh);
+  turrets.push({ x, y, z, hp: 3, mesh, shootT: 1 + Math.random() * 1.5, dead: false });
 }
 function spawnEvent(ev){
   const z = S.pz - 165;
@@ -292,15 +390,30 @@ function spawnEvent(ev){
   } else if (ev.type === 'head'){
     for (let i = 0; i < ev.n; i++)
       spawnFoe('head', (i - (ev.n - 1) / 2) * 4.2, 6.8 + ((i * 7) % 3) * 1.8, z - i * 9);
+  } else if (ev.type === 'turret'){
+    spawnTurret(ev.side, ev.y);
+  } else if (ev.type === 'turret2'){
+    spawnTurret(-1, 3 + Math.random() * 2);
+    spawnTurret(1, 7 + Math.random() * 2);
   }
 }
 function spawnBoss(){
   const mesh = buildBoss();
   scene.add(mesh);
-  S.boss = { mesh, domes: mesh.userData.domes.map(d => ({ mesh: d, hp: 6, alive: true })), fireT: 1.8, fireT2: 2.6 };
-  S.bossHp = 52;
+  S.boss = { mesh, coreOpen: false, coreHp: 14, fireT: 1.8, fireT2: 2.6, fanT: 1.2,
+             domes: mesh.userData.domes.map(d => ({ mesh: d, hp: 6, alive: true })),
+             core: mesh.userData.core, coreGlow: mesh.userData.coreGlow };
+  S.bossHp = 12; S.bossMaxHp = 12;
   pop('STAR DESTROYER!', '#f43f5e', 34);
+  setTimeout(() => { if (S.mode === 'playing') pop('弱点を狙え！ 船体は効かない', '#facc15', 24); }, 1300);
   beep(98, 0.6, 'sawtooth', 0.08, -20);
+  refreshHud();
+}
+function spawnCoreFight(){
+  const mesh = buildCoreTarget();
+  scene.add(mesh);
+  S.coreFight = { mesh, hp: 20, fanT: 1.4, core: mesh.userData.core, glow: mesh.userData.glow, ring1: mesh.userData.ring1, ring2: mesh.userData.ring2 };
+  pop('REACTOR CORE!', '#4ade80', 32);
   refreshHud();
 }
 
@@ -328,8 +441,9 @@ addEventListener('pointerdown', e => {
 });
 addEventListener('pointermove', e => {
   if (!dragging || S.mode !== 'playing') return;
-  S.tx = THREE.MathUtils.clamp(S.tx + (e.clientX - lastPX) * 0.035, -11, 11);
-  S.ty = THREE.MathUtils.clamp(S.ty - (e.clientY - lastPY) * 0.035, 1.4, 13);
+  const cfg = STAGES[S.stage];
+  S.tx = THREE.MathUtils.clamp(S.tx + (e.clientX - lastPX) * 0.035, -cfg.bx, cfg.bx);
+  S.ty = THREE.MathUtils.clamp(S.ty - (e.clientY - lastPY) * 0.035, cfg.yMin, cfg.yMax);
   lastPX = e.clientX; lastPY = e.clientY;
 });
 addEventListener('pointerup', () => dragging = false);
@@ -361,28 +475,58 @@ function bindSlider(id, valId, k){
 }
 bindSlider('sSpd', 'vSpd', 'spd'); bindSlider('sRate', 'vRate', 'rate'); bindSlider('sSens', 'vSens', 'sens');
 
-function startGame(){
+/* ============================== stage flow ============================== */
+function clearEntities(){
   for (const f of foes) scene.remove(f.mesh);
   for (const r of rings) scene.remove(r.mesh);
   for (const r of rocks) scene.remove(r.mesh);
   for (const b of shots) scene.remove(b.mesh);
   for (const b of ebolts) scene.remove(b.mesh);
+  for (const u of turrets) scene.remove(u.mesh);
   if (S.boss){ scene.remove(S.boss.mesh); S.boss = null; }
-  foes = []; rings = []; rocks = []; shots = []; ebolts = [];
-  Object.assign(S, { px: 0, py: 6.5, tx: 0, ty: 6.5, pz: 0, dist: 0, shield: 100, score: 0, hits: 0, fireT: 0, hurtT: 0, dmgFlash: 0, bossHp: 0, clearT: 0, eventIdx: 0, rockT: 0 });
+  if (S.coreFight){ scene.remove(S.coreFight.mesh); S.coreFight = null; }
+  foes = []; rings = []; rocks = []; shots = []; ebolts = []; turrets = [];
+}
+function startGame(){
+  clearEntities();
+  Object.assign(S, { stage: 1, px: 0, py: 6.5, tx: 0, ty: 6.5, pz: 0, dist: 0, shield: 100, score: 0, hits: 0, fireT: 0, hurtT: 0, dmgFlash: 0, bossHp: 0, eventIdx: 0, rockT: 0 });
+  trench.visible = false;
+  planet.visible = true;
+  ship.visible = true;
   $('titlePanel').style.display = 'none';
   $('resultPanel').style.display = 'none';
-  ship.visible = true;
   S.mode = 'playing';
+  refreshHud();
+}
+function startHyper(){
+  S.mode = 'hyper'; S.hyperT = 2.8;
+  clearEntities();
+  streaks.visible = true;
+  sndHyper();
+  pop('HYPERDRIVE!', '#a5f3fc', 36);
+}
+function setupStage2(){
+  S.stage = 2; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
+  S.tx = 0; S.ty = 6.5;
+  S.shield = Math.min(100, S.shield + 30);
+  trench.visible = true;
+  planet.visible = false;
+  streaks.visible = false;
+  camera.fov = 66; camera.updateProjectionMatrix();
+  S.mode = 'playing';
+  pop('STAGE 2 — TRENCH RUN', '#67e8f9', 30);
+  setTimeout(() => { if (S.mode === 'playing') pop('リアクターコアを破壊せよ', '#4ade80', 22); }, 1400);
   refreshHud();
 }
 $('startBtn').addEventListener('click', () => { ac(); startGame(); });
 $('retryBtn').addEventListener('click', () => { ac(); startGame(); });
-function endGame(clear){
+function endGame(allClear){
   S.mode = 'over';
-  $('resultTitle').textContent = clear ? '🎉 COURSE CLEAR!' : 'GAME OVER';
-  $('resultTitle').style.color = clear ? '#4ade80' : '#f0abfc';
-  $('resultScore').innerHTML = 'SCORE ' + S.score + ' · HITS ' + S.hits + (clear ? '<br>デストロイヤー撃破！' : '<br>到達 ' + Math.round(S.dist) + 'm / ' + COURSE_LEN + 'm');
+  streaks.visible = false;
+  $('resultTitle').textContent = allClear ? '🎉 ALL CLEAR!' : 'GAME OVER';
+  $('resultTitle').style.color = allClear ? '#4ade80' : '#f0abfc';
+  $('resultScore').innerHTML = 'SCORE ' + S.score + ' · HITS ' + S.hits +
+    (allClear ? '<br>両ステージ制覇！ コア破壊完了' : '<br>STAGE ' + S.stage + ' · 到達 ' + Math.round(S.dist) + 'm');
   $('resultPanel').style.display = 'flex';
 }
 function damage(amount){
@@ -404,9 +548,8 @@ function fireLaser(){
   shots.push({ x: m.position.x, y: m.position.y, z: m.position.z, mesh: m });
   sndLaser();
 }
-S.cannonIdx = 0;
-function fireEbolt(fx, fy, fz, speed = 34){
-  const dx = S.px - fx, dy = S.py - fy, dz = S.pz - fz;
+function fireEbolt(fx, fy, fz, speed = 34, jx = 0, jy = 0){
+  const dx = (S.px + jx) - fx, dy = (S.py + jy) - fy, dz = S.pz - fz;
   const len = Math.hypot(dx, dy, dz) || 1;
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf87171 }));
   const halo = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.3 }));
@@ -430,15 +573,34 @@ function animate(){
   const dt = Math.min(clock.getDelta(), 0.05);
   S.time += dt;
   const t = S.time;
+  const cfg = STAGES[S.stage];
 
-  if (S.mode === 'playing'){
-    const inBoss = !!S.boss || S.dist >= COURSE_LEN;
-    /* --- flight --- */
-    const speed = inBoss ? 0 : 34 * tune.spd;
-    if (!inBoss){ S.dist += speed * dt; S.pz = -S.dist; }
+  if (S.mode === 'hyper'){
+    S.hyperT -= dt;
+    S.px += (0 - S.px) * (1 - Math.exp(-3 * dt));
+    S.py += (6.5 - S.py) * (1 - Math.exp(-3 * dt));
+    ship.position.set(S.px, S.py, S.pz);
+    ship.rotation.z *= 0.9; ship.rotation.x *= 0.9;
+    const prog = 1 - Math.max(0, S.hyperT) / 2.8;
+    camera.fov = 66 + Math.sin(prog * Math.PI) * 30;
+    camera.updateProjectionMatrix();
+    streaks.position.set(S.px * 0.6, 0, S.pz);
+    for (const m of streaks.children){
+      m.position.z += 175 * dt;
+      if (m.position.z > 12) m.position.z -= 200;
+    }
+    camera.position.lerp(new THREE.Vector3(S.px * 0.62, S.py * 0.62 + 2.7, S.pz + 9.5), 0.14);
+    camera.lookAt(S.px * 0.85, S.py * 0.85 + 0.3, S.pz - 30);
+    reticle.visible = reticle2.visible = false;
+    if (S.hyperT <= 0) setupStage2();
+  }
+  else if (S.mode === 'playing'){
+    const inFight = !!S.boss || !!S.coreFight || S.dist >= cfg.len;
+    const speed = inFight ? 0 : 34 * tune.spd;
+    if (!inFight){ S.dist += speed * dt; S.pz = -S.dist; }
     const kv = keyVec();
-    S.tx = THREE.MathUtils.clamp(S.tx + (stickVec.x + kv.x) * 24 * tune.sens * dt, -11, 11);
-    S.ty = THREE.MathUtils.clamp(S.ty + (-stickVec.y + kv.y) * 20 * tune.sens * dt, 1.4, 13);
+    S.tx = THREE.MathUtils.clamp(S.tx + (stickVec.x + kv.x) * 24 * tune.sens * dt, -cfg.bx, cfg.bx);
+    S.ty = THREE.MathUtils.clamp(S.ty + (-stickVec.y + kv.y) * 20 * tune.sens * dt, cfg.yMin, cfg.yMax);
     const prevPx = S.px, prevPy = S.py;
     S.px += (S.tx - S.px) * (1 - Math.exp(-8 * dt));
     S.py += (S.ty - S.py) * (1 - Math.exp(-8 * dt));
@@ -448,30 +610,37 @@ function animate(){
     ship.rotation.x = THREE.MathUtils.clamp(vy * 0.03, -0.35, 0.35);
     if (S.hurtT > 0){ S.hurtT -= dt; ship.visible = Math.floor(t * 16) % 2 === 0; }
     else ship.visible = true;
+    if (S.guardPopT > 0) S.guardPopT -= dt;
     if (S.dmgFlash > 0){ S.dmgFlash = Math.max(0, S.dmgFlash - dt * 2.4); $('dmgFlash').style.opacity = S.dmgFlash * 0.9; }
 
-    /* --- events & environment --- */
+    const EVENTS = S.stage === 1 ? EVENTS1 : EVENTS2;
     while (S.eventIdx < EVENTS.length && S.dist >= EVENTS[S.eventIdx].at){ spawnEvent(EVENTS[S.eventIdx]); S.eventIdx++; }
-    if (S.dist >= COURSE_LEN && !S.boss && S.mode === 'playing') spawnBoss();
+    if (S.stage === 1 && S.dist >= cfg.len && !S.boss) spawnBoss();
+    if (S.stage === 2 && S.dist >= cfg.len && !S.coreFight) spawnCoreFight();
+
+    /* rocks: stage 1 space + drift during end fights */
     S.rockT -= dt;
-    const rockInterval = inBoss ? 0.9 : (S.dist > 1500 && S.dist < 3350) ? 0.42 : 1.5;
-    if (S.rockT <= 0){
+    let rockInterval = -1, rockVz = 0;
+    if (inFight){ rockInterval = 0.9; rockVz = 20; }
+    else if (S.stage === 1) rockInterval = (S.dist > 1500 && S.dist < 3350) ? 0.42 : 1.5;
+    if (rockInterval > 0 && S.rockT <= 0){
       S.rockT = rockInterval;
       const r = 1.8 + Math.random() * 2.6;
       const mesh = buildRock(r);
       const rx = (Math.random() * 2 - 1) * 13, ry = 1 + Math.random() * 13, rz = S.pz - 175;
       mesh.position.set(rx, ry, rz);
       scene.add(mesh);
-      rocks.push({ x: rx, y: ry, z: rz, r, vz: inBoss ? 20 : 0, mesh, spin: (Math.random() - 0.5) * 0.8 });
+      rocks.push({ x: rx, y: ry, z: rz, r, vz: rockVz, mesh, spin: (Math.random() - 0.5) * 0.8, dead: false });
     }
 
-    /* --- firing --- */
+    /* firing */
     if (firing){
       S.fireT -= dt;
       if (S.fireT <= 0){ fireLaser(); S.fireT = 0.15 / tune.rate; }
     } else S.fireT = 0;
 
-    /* --- player shots --- */
+    /* player shots */
+    const bz = S.pz - 62;
     for (const sh of shots){
       sh.z -= 125 * dt;
       sh.mesh.position.set(sh.x, sh.y, sh.z);
@@ -485,37 +654,93 @@ function animate(){
         }
       }
       if (sh.z > 9000) continue;
-      for (const r of rocks){
-        if (Math.abs(sh.z - r.z) < r.r && Math.hypot(sh.x - r.x, sh.y - r.y) < r.r){ sh.z = 9999; boom(sh.x, sh.y, sh.z + 1, 0xd6c8a8, 0.4); break; }
-      }
-      if (sh.z > 9000 || !S.boss) continue;
-      const bz = S.pz - 62;
-      for (const d of S.boss.domes){
-        if (!d.alive) continue;
-        const dwx = S.bossSwayX - (d.mesh.position.x), dwy = 6.8, dwz = bz - 16;
-        if (Math.abs(sh.z - dwz) < 2.4 && Math.hypot(sh.x - dwx, sh.y - dwy) < 2.1){
-          sh.z = 9999; d.hp--; S.bossHp--;
-          boom(dwx, dwy, dwz, 0xfacc15, 0.7);
-          if (d.hp <= 0){ d.alive = false; d.mesh.visible = false; S.score += 300; pop('TURRET DOWN +300', '#facc15', 22); sndBoom(false); }
-          refreshHud(); break;
+      for (const u of turrets){
+        if (u.dead) continue;
+        if (Math.abs(sh.z - u.z) < 1.6 && Math.hypot(sh.x - u.x, sh.y - u.y) < 1.6){
+          sh.z = 9999; u.hp--;
+          boom(u.x, u.y, u.z, 0xfacc15, 0.5);
+          if (u.hp <= 0){ u.dead = true; scene.remove(u.mesh); S.score += 150; S.hits++; pop('TURRET +150', '#facc15', 20); sndBoom(false); refreshHud(); }
+          break;
         }
       }
       if (sh.z > 9000) continue;
-      if (Math.abs(sh.z - bz) < 9 && Math.abs(sh.x - S.bossSwayX) < 15 && Math.abs(sh.y - 5.5) < 5.5){
-        sh.z = 9999; S.bossHp--;
-        boom(sh.x, sh.y, bz + 6, 0xfda4af, 0.5);
-        refreshHud();
+      for (const r of rocks){
+        if (Math.abs(sh.z - r.z) < r.r && Math.hypot(sh.x - r.x, sh.y - r.y) < r.r){ sh.z = 9999; boom(sh.x, sh.y, sh.z + 1, 0xd6c8a8, 0.4); break; }
+      }
+      if (sh.z > 9000) continue;
+      /* boss weak points only */
+      if (S.boss){
+        const B = S.boss;
+        let consumed = false;
+        for (const d of B.domes){
+          if (!d.alive) continue;
+          const dwx = S.bossSwayX - d.mesh.position.x, dwy = 6.8, dwz = bz - 16;
+          if (Math.abs(sh.z - dwz) < 2.4 && Math.hypot(sh.x - dwx, sh.y - dwy) < 2.1){
+            sh.z = 9999; consumed = true; d.hp--; S.bossHp--;
+            boom(dwx, dwy, dwz, 0xfacc15, 0.75);
+            if (d.hp <= 0){
+              d.alive = false; d.mesh.visible = false; S.score += 300; pop('TURRET DOWN +300', '#facc15', 22); sndBoom(false);
+              if (B.domes.every(x => !x.alive) && !B.coreOpen){
+                B.coreOpen = true; B.core.visible = true; B.coreGlow.visible = true;
+                S.bossHp = B.coreHp; S.bossMaxHp = B.coreHp;
+                pop('コア出現！ そこを撃て！', '#4ade80', 26);
+                beep(660, 0.2, 'square', 0.05, 440);
+              }
+            }
+            refreshHud(); break;
+          }
+        }
+        if (!consumed && B.coreOpen){
+          const cwx = S.bossSwayX, cwy = 4.8, cwz = bz + 6;
+          if (Math.abs(sh.z - cwz) < 2.6 && Math.hypot(sh.x - cwx, sh.y - cwy) < 2.3){
+            sh.z = 9999; consumed = true; B.coreHp--; S.bossHp--;
+            boom(cwx, cwy, cwz, 0x4ade80, 0.8);
+            refreshHud();
+          }
+        }
+        if (!consumed && sh.z < bz + 26 && sh.z > bz - 12 && Math.abs(sh.x - S.bossSwayX) < 14 && Math.abs(sh.y - 5) < 5.5){
+          sh.z = 9999;
+          boom(sh.x, sh.y, sh.z + 1, 0x9aa4b5, 0.35);
+          sndGuard();
+          if (S.guardPopT <= 0){ pop('NO DAMAGE', '#94a3b8', 17); S.guardPopT = 1.4; }
+        }
+        if (sh.z > 9000) continue;
+      }
+      /* stage 2 reactor core */
+      if (S.coreFight){
+        const cz = S.pz - 55;
+        if (Math.abs(sh.z - cz) < 3.4 && Math.hypot(sh.x - 0, sh.y - 6) < 3.4){
+          sh.z = 9999; S.coreFight.hp--;
+          boom(sh.x, sh.y, cz + 2, 0x4ade80, 0.7);
+          refreshHud();
+        }
       }
     }
     shots = shots.filter(sh => { if (sh.z > 9000 || sh.z < S.pz - 210){ scene.remove(sh.mesh); return false; } return true; });
 
-    /* --- foes --- */
+    /* foes */
     for (const f of foes){
       if (f.kind === 'chase'){
-        f.z -= 21 * dt;
-        f.x = f.baseX + Math.sin(t * 1.3 + f.phase) * 1.1;
+        const distA = S.pz - f.z;
+        if (f.state === 'approach'){
+          f.z -= 21 * dt;
+          f.x = f.baseX + Math.sin(t * 1.3 + f.phase) * 1.1;
+          if (distA <= 30) f.state = 'duel';
+        } else if (f.state === 'duel'){
+          f.z = S.pz - 29 + Math.sin(t * 0.9 + f.phase) * 1.5;
+          f.baseX += THREE.MathUtils.clamp(S.px - f.baseX, -1, 1) * 0.6 * dt;
+          f.x = THREE.MathUtils.clamp(f.baseX + Math.sin(t * 1.15 + f.phase) * 2.1, -10.5, 10.5);
+          f.y = f.baseY + Math.sin(t * 1.4 + f.phase) * 1.1;
+          f.duelT -= dt;
+          f.shootT -= dt;
+          if (f.shootT <= 0){ fireEbolt(f.x, f.y, f.z, 36); f.shootT = 1.9 + Math.random() * 0.8; }
+          if (f.duelT <= 0) f.state = 'flee';
+        } else {
+          f.z -= 52 * dt;
+          if (S.pz - f.z > 200) f.dead = true;
+        }
       } else {
-        f.z += 27 * dt;
+        f.z += 20 * dt;
         f.x = f.baseX + Math.sin(t * 1.7 + f.phase) * 0.9;
         f.shootT -= dt;
         if (f.shootT <= 0 && f.z < S.pz - 25){ fireEbolt(f.x, f.y, f.z, 34); f.shootT = 2.2 + Math.random() * 2.2; }
@@ -532,7 +757,16 @@ function animate(){
     }
     foes = foes.filter(f => !f.dead);
 
-    /* --- enemy bolts --- */
+    /* turrets */
+    for (const u of turrets){
+      if (u.dead) continue;
+      u.shootT -= dt;
+      if (u.shootT <= 0 && u.z < S.pz - 10 && u.z > S.pz - 130){ fireEbolt(u.x, u.y, u.z, 33); u.shootT = 2.3 + Math.random() * 0.9; }
+      if (u.z > S.pz + 12){ u.dead = true; scene.remove(u.mesh); }
+    }
+    turrets = turrets.filter(u => !u.dead);
+
+    /* enemy bolts */
     for (const b of ebolts){
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
       b.mesh.position.set(b.x, b.y, b.z);
@@ -543,10 +777,9 @@ function animate(){
     }
     ebolts = ebolts.filter(b => { if (b.z > 9000){ scene.remove(b.mesh); return false; } return true; });
 
-    /* --- rings --- */
+    /* rings */
     for (const r of rings){
       r.mesh.rotation.z += dt * 0.7;
-      r.mesh.position.z = r.z;
       if (!r.taken && Math.abs(r.z - S.pz) < 1.3){
         r.taken = true;
         if (Math.hypot(S.px - r.x, S.py - r.y) < 2.8){
@@ -559,7 +792,7 @@ function animate(){
     }
     rings = rings.filter(r => !r.taken);
 
-    /* --- rocks --- */
+    /* rocks */
     for (const r of rocks){
       r.z += r.vz * dt;
       r.mesh.position.set(r.x, r.y, r.z);
@@ -574,33 +807,67 @@ function animate(){
     }
     rocks = rocks.filter(r => !r.dead);
 
-    /* --- boss --- */
+    /* boss */
     if (S.boss){
-      const b = S.boss;
+      const B = S.boss;
       S.bossSwayX = Math.sin(t * 0.3) * 3;
-      b.mesh.position.set(S.bossSwayX, 0.6 + Math.sin(t * 0.5) * 0.4, S.pz - 62);
-      b.mesh.rotation.y = Math.PI;
-      const aliveDomes = b.domes.filter(d => d.alive);
-      b.fireT -= dt;
-      if (b.fireT <= 0){ if (aliveDomes.length) { const d = aliveDomes[0]; fireEbolt(S.bossSwayX - d.mesh.position.x, 6.8, S.pz - 78, 37); } b.fireT = aliveDomes.length ? 1.7 : 3.2; }
-      b.fireT2 -= dt;
-      if (b.fireT2 <= 0){ if (aliveDomes.length > 1) { const d = aliveDomes[1]; fireEbolt(S.bossSwayX - d.mesh.position.x, 6.8, S.pz - 78, 37); } b.fireT2 = 2.3; }
-      if (!aliveDomes.length){ /* hull-only desperation fire */
-        if (b.fireT <= 0.4 && Math.random() < dt * 0.7) fireEbolt(S.bossSwayX, 5.5, S.pz - 70, 36);
+      B.mesh.position.set(S.bossSwayX, 0.6 + Math.sin(t * 0.5) * 0.4, bz);
+      B.mesh.rotation.y = Math.PI;
+      if (B.coreOpen){
+        const pulse = 1 + Math.sin(t * 6) * 0.15;
+        B.coreGlow.scale.setScalar(pulse);
+        B.fanT -= dt;
+        if (B.fanT <= 0){
+          fireEbolt(S.bossSwayX, 4.8, bz + 6, 36, -2.4, 0);
+          fireEbolt(S.bossSwayX, 4.8, bz + 6, 36, 0, 0);
+          fireEbolt(S.bossSwayX, 4.8, bz + 6, 36, 2.4, 0);
+          B.fanT = 1.6;
+        }
+        if (B.coreHp <= 0){
+          for (let i = 0; i < 7; i++) boom(S.bossSwayX + (Math.random() - 0.5) * 22, 4 + Math.random() * 5, bz + (Math.random() - 0.5) * 18, i % 2 ? 0xfb923c : 0xfacc15, 2 + Math.random() * 1.6);
+          sndBoom(true);
+          S.score += 2000;
+          pop('DESTROYER DOWN! +2000', '#4ade80', 30);
+          scene.remove(B.mesh); S.boss = null;
+          refreshHud();
+          setTimeout(() => { if (S.mode === 'playing') startHyper(); }, 1500);
+        }
+      } else {
+        const aliveDomes = B.domes.filter(d => d.alive);
+        B.fireT -= dt;
+        if (B.fireT <= 0){ if (aliveDomes.length) { const d = aliveDomes[0]; fireEbolt(S.bossSwayX - d.mesh.position.x, 6.8, bz - 16, 37); } B.fireT = aliveDomes.length ? 1.7 : 3.2; }
+        B.fireT2 -= dt;
+        if (B.fireT2 <= 0){ if (aliveDomes.length > 1) { const d = aliveDomes[1]; fireEbolt(S.bossSwayX - d.mesh.position.x, 6.8, bz - 16, 37); } B.fireT2 = 2.3; }
       }
-      if (S.bossHp <= 0){
-        for (let i = 0; i < 6; i++) boom(S.bossSwayX + (Math.random() - 0.5) * 22, 4 + Math.random() * 5, S.pz - 62 + (Math.random() - 0.5) * 18, i % 2 ? 0xfb923c : 0xfacc15, 2 + Math.random() * 1.6);
+    }
+
+    /* stage 2 reactor core */
+    if (S.coreFight){
+      const C = S.coreFight, cz = S.pz - 55;
+      C.mesh.position.set(0, 6, cz);
+      C.ring1.rotation.z += dt * 0.8;
+      C.ring2.rotation.y += dt * 0.6;
+      C.glow.scale.setScalar(1 + Math.sin(t * 5) * 0.1);
+      C.fanT -= dt;
+      if (C.fanT <= 0){
+        fireEbolt(0, 6, cz, 35, -2.6, 0.8);
+        fireEbolt(0, 6, cz, 35, 0, -0.6);
+        fireEbolt(0, 6, cz, 35, 2.6, 0.8);
+        C.fanT = 1.7;
+      }
+      if (C.hp <= 0){
+        for (let i = 0; i < 8; i++) boom((Math.random() - 0.5) * 10, 6 + (Math.random() - 0.5) * 6, cz + (Math.random() - 0.5) * 6, i % 2 ? 0x4ade80 : 0xfacc15, 2 + Math.random() * 1.8);
         sndBoom(true);
-        S.score += 2000;
-        pop('DESTROYER DOWN! +2000', '#4ade80', 30);
-        scene.remove(b.mesh); S.boss = null;
+        S.score += 3000;
+        pop('CORE DESTROYED! +3000', '#4ade80', 32);
+        scene.remove(C.mesh); S.coreFight = null;
         refreshHud();
         setTimeout(() => { if (S.mode === 'playing') endGame(true); }, 1600);
       }
     }
     refreshHud();
-  } else {
-    /* title / over: gentle idle */
+  }
+  else {
     ship.position.set(Math.sin(t * 0.4) * 1.5, 6.5 + Math.sin(t * 0.8) * 0.5, 0);
     ship.rotation.z = Math.sin(t * 0.4) * 0.12;
     reticle.visible = reticle2.visible = false;
@@ -616,6 +883,7 @@ function animate(){
   }
   stars.position.z = S.pz - 120;
   planet.position.z = S.pz - 190;
+  if (trench.visible) trench.position.z = S.pz + 20 - (S.dist % 30);
 
   for (let i = booms.length - 1; i >= 0; i--){
     const b = booms[i]; b.t += dt;
@@ -626,7 +894,6 @@ function animate(){
   }
   renderer.render(scene, camera);
 }
-S.bossSwayX = 0;
 animate();
 
 addEventListener('resize', () => {
