@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v1.2.2 RAIL</title>
+<title>SABER BREAKER 3D v1.2.3 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -15,7 +15,7 @@
   #shieldWrap small { color:#67e8f9; font-size:9px; font-weight:800; letter-spacing:.16em; text-shadow:0 1px 3px #000; }
   #shieldBarBg { height:12px; border:1.5px solid rgba(103,232,249,.7); border-radius:7px; background:rgba(8,20,40,.6); overflow:hidden; }
   #shieldBar { height:100%; width:100%; background:linear-gradient(90deg,#22d3ee,#4ade80); transition:width .18s; }
-  #bossWrap { position:fixed; top:calc(58px + env(safe-area-inset-top)); right:12px; z-index:5; width:150px; pointer-events:none; display:none; text-align:right; }
+  #bossWrap { position:fixed; top:calc(148px + env(safe-area-inset-top)); right:12px; z-index:5; width:150px; pointer-events:none; display:none; text-align:right; }
   #bossWrap small { color:#fda4af; font-size:9px; font-weight:800; letter-spacing:.16em; text-shadow:0 1px 3px #000; }
   #bossBarBg { height:12px; border:1.5px solid rgba(244,114,182,.7); border-radius:7px; background:rgba(40,8,20,.6); overflow:hidden; }
   #bossBar { height:100%; width:100%; background:linear-gradient(90deg,#f43f5e,#f59e0b); transition:width .18s; }
@@ -522,8 +522,8 @@ function clearEntities(){
   for (const f of foes) scene.remove(f.mesh);
   for (const r of rings) scene.remove(r.mesh);
   for (const r of rocks) scene.remove(r.mesh);
-  for (const b of shots) scene.remove(b.mesh);
-  for (const b of ebolts) scene.remove(b.mesh);
+  for (const b of shots) zapMesh(b.mesh);
+  for (const b of ebolts) zapMesh(b.mesh);
   for (const u of turrets) scene.remove(u.mesh);
   if (S.boss){ scene.remove(S.boss.mesh); S.boss = null; }
   if (S.coreFight){ scene.remove(S.coreFight.mesh); S.coreFight = null; }
@@ -594,13 +594,20 @@ function buildBeam(colorHex, len, r){
   g.add(glow, core, capA, capB);
   return g;
 }
+function zapMesh(m){
+  scene.remove(m);
+  m.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+}
 const shotGeo = new THREE.SphereGeometry(0.16, 8, 6);
 function fireLaser(){
   const tip = cannonTips[S.cannonIdx % 4]; S.cannonIdx++;
   const m = buildBeam(0x4ade80, 2.9, 0.11);
-  m.position.set(S.px + tip.x, S.py + tip.y, S.pz + tip.z);
+  const sx = S.px + tip.x, sy = S.py + tip.y, sz = S.pz + tip.z;
+  m.position.set(sx, sy, sz);
+  const dx = S.px - sx, dy = S.py - sy, dz = -26 - tip.z;
+  const dl = Math.hypot(dx, dy, dz) || 1, sp = 125;
   scene.add(m);
-  shots.push({ x: m.position.x, y: m.position.y, z: m.position.z, mesh: m });
+  shots.push({ x: sx, y: sy, z: sz, vx: dx / dl * sp, vy: dy / dl * sp, vz: dz / dl * sp, mesh: m });
   sndLaser();
 }
 function fireEbolt(fx, fy, fz, speed = 34, jx = 0, jy = 0){
@@ -695,8 +702,9 @@ function animate(){
     /* player shots */
     const bz = S.pz - 62;
     for (const sh of shots){
-      sh.z -= 125 * dt;
+      sh.x += sh.vx * dt; sh.y += sh.vy * dt; sh.z += sh.vz * dt;
       sh.mesh.position.set(sh.x, sh.y, sh.z);
+      sh.mesh.lookAt(sh.x + sh.vx, sh.y + sh.vy, sh.z + sh.vz);
       sh.mesh.scale.z = 0.93 + Math.random() * 0.14;
       for (const f of foes){
         if (f.dead) continue;
@@ -710,7 +718,7 @@ function animate(){
       if (sh.z > 9000) continue;
       for (const u of turrets){
         if (u.dead) continue;
-        if (Math.abs(sh.z - u.z) < 1.6 && Math.hypot(sh.x - u.x, sh.y - u.y) < 1.6){
+        if (Math.abs(sh.z - u.z) < 1.6 && Math.hypot(sh.x - u.x, sh.y - u.y) < 1.9){
           sh.z = 9999; u.hp--;
           boom(u.x, u.y, u.z, 0xfacc15, 0.5);
           if (u.hp <= 0){ u.dead = true; scene.remove(u.mesh); S.score += 150; S.hits++; pop('TURRET +150', '#facc15', 20); sndBoom(false); refreshHud(); }
@@ -729,7 +737,7 @@ function animate(){
         for (const d of B.domes){
           if (!d.alive) continue;
           const dwx = S.bossSwayX - d.mesh.position.x, dwy = 6.8, dwz = bz - 16;
-          if (Math.abs(sh.z - dwz) < 2.4 && Math.hypot(sh.x - dwx, sh.y - dwy) < 2.1){
+          if (Math.abs(sh.z - dwz) < 2.4 && Math.hypot(sh.x - dwx, sh.y - dwy) < 2.4){
             sh.z = 9999; consumed = true; d.hp--; S.bossHp--;
             boom(dwx, dwy, dwz, 0xfacc15, 0.75);
             if (d.hp <= 0){
@@ -746,7 +754,7 @@ function animate(){
         }
         if (!consumed && B.coreOpen){
           const cwx = S.bossSwayX, cwy = 4.8, cwz = bz + 6;
-          if (Math.abs(sh.z - cwz) < 2.6 && Math.hypot(sh.x - cwx, sh.y - cwy) < 2.3){
+          if (Math.abs(sh.z - cwz) < 2.6 && Math.hypot(sh.x - cwx, sh.y - cwy) < 2.5){
             sh.z = 9999; consumed = true; B.coreHp--; S.bossHp--;
             boom(cwx, cwy, cwz, 0x4ade80, 0.8);
             refreshHud();
@@ -763,7 +771,7 @@ function animate(){
       /* stage 2 reactor core */
       if (S.coreFight){
         const cz = S.pz - 55;
-        if (Math.abs(sh.z - cz) < 1.8 && Math.hypot(sh.x - 0, sh.y - 5.2) < 1.5){
+        if (Math.abs(sh.z - cz) < 1.8 && Math.hypot(sh.x - 0, sh.y - 5.2) < 1.8){
           sh.z = 9999; S.coreFight.hp--;
           boom(sh.x, sh.y, cz + 1, 0xfb923c, 0.8);
           pop('HIT!', '#fb923c', 18);
@@ -775,7 +783,7 @@ function animate(){
         }
       }
     }
-    shots = shots.filter(sh => { if (sh.z > 9000 || sh.z < S.pz - 210){ scene.remove(sh.mesh); return false; } return true; });
+    shots = shots.filter(sh => { if (sh.z > 9000 || sh.z < S.pz - 210){ zapMesh(sh.mesh); return false; } return true; });
 
     /* foes */
     for (const f of foes){
@@ -836,7 +844,7 @@ function animate(){
       }
       if (b.z > S.pz + 12 || b.z < S.pz - 220) b.z = 9999;
     }
-    ebolts = ebolts.filter(b => { if (b.z > 9000){ scene.remove(b.mesh); return false; } return true; });
+    ebolts = ebolts.filter(b => { if (b.z > 9000){ zapMesh(b.mesh); return false; } return true; });
 
     /* rings */
     for (const r of rings){
