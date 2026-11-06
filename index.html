@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v0.2</title>
+<title>SABER BREAKER 3D v0.3</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#05010f; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -24,6 +24,8 @@
   .overlay p { color:#cffafe; font-size:14px; font-weight:700; line-height:1.8; }
   .bigBtn { background:#082f49; border:2px solid #38bdf8; color:#fff; font-size:18px; font-weight:800; letter-spacing:.1em; padding:13px 36px; border-radius:999px; box-shadow:0 0 18px rgba(56,189,248,.6); }
   #resultPanel { display:none; }
+  #stickBase { position:fixed; left:18px; bottom:calc(24px + env(safe-area-inset-bottom)); z-index:7; width:118px; height:118px; border-radius:50%; border:2px solid rgba(103,232,249,.55); background:radial-gradient(circle, rgba(14,60,90,.35), rgba(8,30,50,.55)); }
+  #stickKnob { position:absolute; left:50%; top:50%; width:52px; height:52px; border-radius:50%; background:radial-gradient(circle at 35% 30%, rgba(125,211,252,.95), rgba(2,90,160,.95)); border:2px solid rgba(255,255,255,.6); transform:translate(-50%,-50%); box-shadow:0 0 14px rgba(56,189,248,.6); }
   #tuneBtn { position:fixed; right:12px; top:calc(60px + env(safe-area-inset-top)); z-index:7; width:40px; height:40px; border-radius:50%; border:2px solid rgba(255,255,255,.45); background:rgba(10,4,32,.65); color:#fff; font-size:18px; }
   #tunePanel { position:fixed; right:12px; top:calc(106px + env(safe-area-inset-top)); z-index:7; width:225px; background:rgba(8,4,30,.94); border:1.5px solid rgba(103,232,249,.55); border-radius:14px; padding:12px 14px; color:#e0f7ff; display:none; }
   #tunePanel label { display:block; font-size:12px; font-weight:700; margin:8px 0 2px; }
@@ -42,7 +44,8 @@
   <div class="hudBox" id="livesBox"><small>LIFE</small><span id="livesVal">♥♥♥</span></div>
 </div>
 <div id="popLayer"></div>
-<div id="moveHint">ドラッグ：移動（奥まで進んで直接斬れる）</div>
+<div id="moveHint" style="left:20px; bottom:calc(152px + env(safe-area-inset-bottom))">左スティック：移動 ／ ドラッグでも可</div>
+<div id="stickBase"><div id="stickKnob"></div></div>
 <button id="swingBtn">⚔<br>SWING</button>
 <button id="tuneBtn">⚙</button>
 <div id="tunePanel">
@@ -242,7 +245,7 @@ function boom(x, y, z, col, scale = 1){
 }
 
 /* ============================== game state ============================== */
-const S = { mode: 'title', score: 0, wave: 1, lives: 3, maxChain: 0, shootT: 1.6, bossT: 2.4, pending: null, time: 0 };
+const S = { mode: 'title', score: 0, wave: 1, lives: 3, maxChain: 0, shootT: 1.6, bossT: 2.4, pending: null, time: 0, launchQ: [] };
 const $ = id => document.getElementById(id);
 function pop(text, color = '#fff', size = 30){
   const d = document.createElement('div');
@@ -261,6 +264,9 @@ function buildWave(){
   for (const u of units) scene.remove(u.mesh);
   for (const b of bolts) scene.remove(b.mesh);
   units = []; bolts = []; booms.forEach(b => scene.remove(b.m)); booms = [];
+  missiles.forEach(m => scene.remove(m.mesh)); missiles = [];
+  puffs.forEach(pf => scene.remove(pf.m)); puffs = [];
+  S.launchQ = [];
   form = { fx: 0, fz: -34, dir: 1, speed: 1.15 };
   S.pending = null; S.shootT = 1.6; S.bossT = 2.6;
   const wave = S.wave;
@@ -307,9 +313,39 @@ $('startBtn').addEventListener('click', () => { ac(); startGame(); });
 $('retryBtn').addEventListener('click', () => { ac(); startGame(); });
 
 /* ============================== input ============================== */
+/* virtual stick (bottom-left): knob offset -> movement vector */
+const stickVec = { x: 0, y: 0 };
+let stickId = null;
+const stickBase = $('stickBase'), stickKnob = $('stickKnob');
+function stickSet(e){
+  const r = stickBase.getBoundingClientRect();
+  let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  const len = Math.hypot(dx, dy), max = 40;
+  if (len > max){ dx *= max / len; dy *= max / len; }
+  stickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  stickVec.x = dx / max; stickVec.y = dy / max;
+}
+stickBase.addEventListener('pointerdown', e => { e.preventDefault(); stickId = e.pointerId; stickBase.setPointerCapture(e.pointerId); stickSet(e); });
+stickBase.addEventListener('pointermove', e => { if (e.pointerId === stickId) stickSet(e); });
+const stickEnd = e => { if (e.pointerId === stickId){ stickId = null; stickVec.x = 0; stickVec.y = 0; stickKnob.style.transform = 'translate(-50%,-50%)'; } };
+stickBase.addEventListener('pointerup', stickEnd);
+stickBase.addEventListener('pointercancel', stickEnd);
+/* keyboard (desktop testing) */
+const keysDown = new Set();
+addEventListener('keydown', e => keysDown.add(e.code));
+addEventListener('keyup', e => keysDown.delete(e.code));
+function keyVec(){
+  let x = 0, y = 0;
+  if (keysDown.has('KeyA') || keysDown.has('ArrowLeft')) x -= 1;
+  if (keysDown.has('KeyD') || keysDown.has('ArrowRight')) x += 1;
+  if (keysDown.has('KeyW') || keysDown.has('ArrowUp')) y -= 1;
+  if (keysDown.has('KeyS') || keysDown.has('ArrowDown')) y += 1;
+  return { x, y };
+}
+/* ============================== input ============================== */
 let dragging = false, lastPX = 0, lastPY = 0;
 addEventListener('pointerdown', e => {
-  if (e.target.closest('button, .overlay, #tunePanel')) return;
+  if (e.target.closest('button, .overlay, #tunePanel, #stickBase')) return;
   dragging = true; lastPX = e.clientX; lastPY = e.clientY;
 });
 addEventListener('pointermove', e => {
@@ -345,6 +381,89 @@ bindSlider('sBolt', 'vBolt', 'bolt', v => '×' + (+v).toFixed(2));
 bindSlider('sApp', 'vApp', 'app', v => '×' + (+v).toFixed(1));
 bindSlider('sFire', 'vFire', 'fire', v => '×' + (+v).toFixed(1));
 
+/* ============================== homing missiles ============================== */
+let missiles = [], puffs = [];
+function buildMissileMesh(){
+  const g = new THREE.Group();
+  const bodyGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.78, 8); bodyGeo.rotateX(Math.PI / 2);
+  const body = new THREE.Mesh(bodyGeo, new THREE.MeshStandardMaterial({ color: 0xb8c0cc, metalness: 0.6, roughness: 0.35 }));
+  const noseGeo = new THREE.ConeGeometry(0.13, 0.34, 8); noseGeo.rotateX(Math.PI / 2);
+  const nose = new THREE.Mesh(noseGeo, new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+  nose.position.z = 0.55;
+  const seeker = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2222 }));
+  seeker.position.z = 0.42;
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.22), new THREE.MeshStandardMaterial({ color: 0x39424f }));
+  fin.position.z = -0.34;
+  const fin2 = fin.clone(); fin2.rotation.z = Math.PI / 2;
+  g.add(body, nose, seeker, fin, fin2);
+  g.userData.seeker = seeker;
+  return g;
+}
+function launchMissile(u){
+  if (missiles.length >= 6) return;
+  const p = unitPos(u);
+  const mesh = buildMissileMesh();
+  mesh.position.set(p.x, 1.7, p.z + 1);
+  scene.add(mesh);
+  const heading = Math.atan2(player.x - p.x, player.z - (p.z + 1)) + (Math.random() - 0.5) * 0.5;
+  missiles.push({ x: p.x, z: p.z + 1, heading, age: 0, smokeT: 0, mesh });
+  beep(520, 0.16, 'sawtooth', 0.035, -260);
+}
+function puff(x, y, z){
+  if (puffs.length > 130) return;
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: 0x9aa4b5, transparent: true, opacity: 0.5, depthWrite: false }));
+  m.position.set(x, y, z);
+  scene.add(m);
+  puffs.push({ m, t: 0 });
+}
+function angleWrap(a){ while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; }
+function destroyMissile(m, scored){
+  scene.remove(m.mesh);
+  boom(m.x, 1.7, m.z, 0xfb923c, 0.9);
+  if (scored){ S.score += 50; pop('MISSILE DOWN +50', '#fb923c', 21); sndBoom(false); refreshHud(); }
+}
+function updateMissiles(dt){
+  /* scheduled volley launches */
+  for (let i = S.launchQ.length - 1; i >= 0; i--){
+    const q = S.launchQ[i]; q.t -= dt;
+    if (q.t <= 0){ if (q.u.alive) launchMissile(q.u); S.launchQ.splice(i, 1); }
+  }
+  for (let i = missiles.length - 1; i >= 0; i--){
+    const m = missiles[i];
+    m.age += dt;
+    if (m.age > 4.5){ destroyMissile(m, false); missiles.splice(i, 1); continue; }
+    const sp = 10.5 + S.wave * 0.4;
+    const desired = Math.atan2(player.x - m.x, player.z - m.z);
+    m.heading += THREE.MathUtils.clamp(angleWrap(desired - m.heading), -2.4 * dt, 2.4 * dt);
+    m.x += Math.sin(m.heading) * sp * dt;
+    m.z += Math.cos(m.heading) * sp * dt;
+    m.mesh.position.set(m.x, 1.7, m.z);
+    m.mesh.rotation.y = m.heading;
+    m.mesh.userData.seeker.material.color.setHex(Math.floor(S.time * 9) % 2 ? 0xff2222 : 0xffffff);
+    m.smokeT -= dt;
+    if (m.smokeT <= 0){ puff(m.x, 1.7, m.z); m.smokeT = 0.05; }
+    const dxp = m.x - player.x, dzp = m.z - player.z;
+    /* slashed out of the air: +50, no chain */
+    if (player.swingT > 0 && Math.abs(dxp) < 2.8 && dzp > -3.4 && dzp < 0.5){
+      destroyMissile(m, true); missiles.splice(i, 1); continue;
+    }
+    if (Math.abs(dxp) < 0.95 && Math.abs(dzp) < 1.0){
+      destroyMissile(m, false); missiles.splice(i, 1);
+      damage(); if (S.mode !== 'playing') return;
+      continue;
+    }
+    if (m.z > 28 || m.z < -54 || Math.abs(m.x) > 17){ scene.remove(m.mesh); missiles.splice(i, 1); }
+  }
+  for (let i = puffs.length - 1; i >= 0; i--){
+    const pf = puffs[i]; pf.t += dt;
+    const k = pf.t / 0.55;
+    pf.m.scale.setScalar(0.6 + k * 1.8);
+    pf.m.position.y += dt * 0.7;
+    pf.m.material.opacity = 0.5 * (1 - k);
+    if (k >= 1){ scene.remove(pf.m); puffs.splice(i, 1); }
+  }
+}
+
 /* ============================== combat ============================== */
 function pickShooter(){
   const alive = aliveUnits(); if (!alive.length) return null;
@@ -355,7 +474,9 @@ function pickShooter(){
 }
 function pickPattern(u){
   if (u.kind === 'normal') return 'single';
-  return Math.random() < 0.5 ? 'burst' : 'single'; // v0.1: bosses add 3-round bursts
+  const r = Math.random();
+  if (u.kind === 'big') return r < 0.30 ? 'burst' : r < 0.70 ? 'missile' : 'single';
+  return r < 0.35 ? 'burst' : r < 0.80 ? 'missile' : 'single';
 }
 function hitUnit(u, b, fromBack){
   const p = unitPos(u);
@@ -486,6 +607,12 @@ function animate(){
 
   if (S.mode === 'playing'){
     /* player */
+    const kv = keyVec();
+    const mvx = stickVec.x + kv.x, mvz = stickVec.y + kv.y;
+    if (mvx || mvz){
+      player.tx = THREE.MathUtils.clamp(player.tx + mvx * 17 * dt, -10, 10);
+      player.tz = THREE.MathUtils.clamp(player.tz + mvz * 19 * dt, -26, 12.6);
+    }
     player.prevX = player.x;
     player.x += (player.tx - player.x) * (1 - Math.exp(-14 * dt));
     player.z += (player.tz - player.z) * (1 - Math.exp(-14 * dt));
@@ -543,7 +670,9 @@ function animate(){
         if (S.pending.t <= 0){
           const u = S.pending.u, pat = S.pending.pattern; S.pending = null;
           if (u.alive){
-            if (pat === 'burst'){
+            if (pat === 'missile'){
+              for (let k = 0; k < 3; k++) S.launchQ.push({ u, t: k * 0.25 });
+            } else if (pat === 'burst'){
               fireFrom(u, (Math.random() - 0.5) * 0.5);
               setTimeout(() => u.alive && fireFrom(u, (Math.random() - 0.5) * 0.5), 140);
               setTimeout(() => u.alive && fireFrom(u, (Math.random() - 0.5) * 0.5), 280);
@@ -568,6 +697,7 @@ function animate(){
       }
       meleeCheck();
       contactCheck();
+      updateMissiles(dt);
       updateBolts(dt);
     }
   } else {
