@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v1.2.1 RAIL</title>
+<title>SABER BREAKER 3D v1.2.2 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -582,11 +582,22 @@ function damage(amount){
 }
 
 /* ============================== combat helpers ============================== */
+function buildBeam(colorHex, len, r){
+  const g = new THREE.Group();
+  const glowGeo = new THREE.CylinderGeometry(r, r, len, 8, 1, true); glowGeo.rotateX(Math.PI / 2);
+  const glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  const coreGeo = new THREE.CylinderGeometry(r * 0.45, r * 0.45, len * 1.02, 6); coreGeo.rotateX(Math.PI / 2);
+  const core = new THREE.Mesh(coreGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  const capGeo = new THREE.SphereGeometry(r * 0.45, 6, 5);
+  const capA = new THREE.Mesh(capGeo, core.material); capA.position.z = len * 0.51;
+  const capB = new THREE.Mesh(capGeo, core.material); capB.position.z = -len * 0.51;
+  g.add(glow, core, capA, capB);
+  return g;
+}
 const shotGeo = new THREE.SphereGeometry(0.16, 8, 6);
 function fireLaser(){
   const tip = cannonTips[S.cannonIdx % 4]; S.cannonIdx++;
-  const m = new THREE.Mesh(shotGeo, new THREE.MeshBasicMaterial({ color: 0x4ade80 }));
-  m.scale.set(1, 1, 3.2);
+  const m = buildBeam(0x4ade80, 2.9, 0.11);
   m.position.set(S.px + tip.x, S.py + tip.y, S.pz + tip.z);
   scene.add(m);
   shots.push({ x: m.position.x, y: m.position.y, z: m.position.z, mesh: m });
@@ -595,9 +606,7 @@ function fireLaser(){
 function fireEbolt(fx, fy, fz, speed = 34, jx = 0, jy = 0){
   const dx = (S.px + jx) - fx, dy = (S.py + jy) - fy, dz = S.pz - fz;
   const len = Math.hypot(dx, dy, dz) || 1;
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf87171 }));
-  const halo = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.3 }));
-  m.add(halo);
+  const m = buildBeam(0xff4444, 2.3, 0.14);
   m.position.set(fx, fy, fz);
   scene.add(m);
   ebolts.push({ x: fx, y: fy, z: fz, vx: dx / len * speed, vy: dy / len * speed, vz: dz / len * speed, mesh: m });
@@ -688,6 +697,7 @@ function animate(){
     for (const sh of shots){
       sh.z -= 125 * dt;
       sh.mesh.position.set(sh.x, sh.y, sh.z);
+      sh.mesh.scale.z = 0.93 + Math.random() * 0.14;
       for (const f of foes){
         if (f.dead) continue;
         if (Math.abs(sh.z - f.z) < 1.7 && Math.hypot(sh.x - f.x, sh.y - f.y) < 1.7){
@@ -819,6 +829,8 @@ function animate(){
     for (const b of ebolts){
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
       b.mesh.position.set(b.x, b.y, b.z);
+      b.mesh.lookAt(b.x + b.vx, b.y + b.vy, b.z + b.vz);
+      b.mesh.scale.z = 0.92 + Math.random() * 0.16;
       if (Math.hypot(b.x - S.px, b.y - S.py, b.z - S.pz) < 1.4){
         b.z = 9999; damage(8); if (S.mode !== 'playing') return;
       }
