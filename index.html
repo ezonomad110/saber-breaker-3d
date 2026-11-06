@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v1.1 RAIL</title>
+<title>SABER BREAKER 3D v1.2 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -67,7 +67,7 @@
 
 <div class="overlay" id="titlePanel">
   <h1>SABER BREAKER<span>— RAIL RUN —</span></h1>
-  <p>自動で前進するレールシューター。<br>左スティックで操縦、右ボタン長押しでレーザー連射。<br>リングをくぐるとシールド回復。ボスは<b>弱点</b>しか効かない。<br>全2ステージ、間はハイパードライブで繋ぐ。</p>
+  <p>自動で前進するレールシューター。<br>左スティックで操縦、右ボタン長押しでレーザー連射。<br>リングをくぐるとシールド回復。ボスは<b>弱点</b>しか効かない。<br>全2ステージ、間はハイパードライブで繋ぐ。<br>STAGE 2はデス・スターのトレンチを抜けて、小さな<b>排気口</b>を撃て。</p>
   <button class="bigBtn" id="startBtn">▶ LAUNCH</button>
 </div>
 <div class="overlay" id="resultPanel">
@@ -142,6 +142,21 @@ const streaks = new THREE.Group();
 }
 streaks.visible = false;
 scene.add(streaks);
+
+/* Death Star: giant sphere looming at the end of the stage 2 approach */
+const dsGroup = new THREE.Group();
+{
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(120, 28, 20), new THREE.MeshStandardMaterial({ color: 0x8b95a5, metalness: 0.35, roughness: 0.65 }));
+  const dish = new THREE.Mesh(new THREE.CircleGeometry(26, 24), new THREE.MeshStandardMaterial({ color: 0x6e7787, metalness: 0.4, roughness: 0.6, side: THREE.DoubleSide }));
+  dish.position.set(-30, 32, 108);
+  dish.lookAt(-30, 32, 300);
+  const dishInner = new THREE.Mesh(new THREE.CircleGeometry(9, 18), new THREE.MeshBasicMaterial({ color: 0x39424f, side: THREE.DoubleSide }));
+  dishInner.position.set(-30, 32, 108.5);
+  dishInner.lookAt(-30, 32, 300);
+  dsGroup.add(sphere, dish, dishInner);
+}
+dsGroup.visible = false;
+scene.add(dsGroup);
 
 /* trench (stage 2): recycled wall segments */
 const trench = new THREE.Group();
@@ -282,17 +297,18 @@ function buildBoss(){
   g.userData = { domes, core, coreGlow };
   return g;
 }
-function buildCoreTarget(){
+function buildPortTarget(){
   const g = new THREE.Group();
   const wall = new THREE.Mesh(new THREE.CircleGeometry(15, 24), new THREE.MeshStandardMaterial({ color: 0x39424f, metalness: 0.5, roughness: 0.5, side: THREE.DoubleSide }));
-  wall.position.z = -4;
-  const core = new THREE.Mesh(new THREE.SphereGeometry(3.0, 18, 14), new THREE.MeshBasicMaterial({ color: 0x4ade80 }));
-  const glow = new THREE.Mesh(new THREE.SphereGeometry(4.1, 18, 14), new THREE.MeshBasicMaterial({ color: 0x22ff88, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }));
-  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(4.6, 0.22, 8, 28), hullMatE);
-  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(5.4, 0.18, 8, 28), darkMatE);
-  ring2.rotation.x = Math.PI / 2.4;
-  g.add(wall, core, glow, ring1, ring2);
-  g.userData = { core, glow, ring1, ring2 };
+  wall.position.z = -3;
+  const frame = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.22, 8, 24), hullMatE);
+  const port = new THREE.Mesh(new THREE.SphereGeometry(1.15, 14, 10), new THREE.MeshBasicMaterial({ color: 0xfb923c }));
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(1.7, 14, 10), new THREE.MeshBasicMaterial({ color: 0xff7722, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const cross1 = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.28, 0.2), darkMatE);
+  const cross2 = new THREE.Mesh(new THREE.BoxGeometry(0.28, 4.6, 0.2), darkMatE);
+  cross1.position.z = 0.3; cross2.position.z = 0.3;
+  g.add(wall, frame, port, glow, cross1, cross2);
+  g.userData = { port, glow };
   return g;
 }
 
@@ -334,7 +350,7 @@ function refreshHud(){
   $('hitsVal').textContent = S.hits;
   $('shieldBar').style.width = Math.max(0, S.shield) + '%';
   $('shieldBar').style.background = S.shield > 50 ? 'linear-gradient(90deg,#22d3ee,#4ade80)' : S.shield > 25 ? 'linear-gradient(90deg,#f59e0b,#facc15)' : 'linear-gradient(90deg,#ef4444,#f87171)';
-  if (S.coreFight) bossBarShow('REACTOR CORE', S.coreFight.hp, 20);
+  if (S.coreFight) bossBarShow('EXHAUST PORT', S.coreFight.hp, 8);
   else if (S.boss) bossBarShow(S.boss.coreOpen ? 'CORE EXPOSED!' : 'WEAK POINTS: TURRETS', S.bossHp, S.bossMaxHp);
   else {
     $('bossWrap').style.display = 'none';
@@ -358,7 +374,7 @@ const EVENTS2 = [
   { at: 500, type: 'turret2' }, { at: 680, type: 'ring', x: 0, y: 6 },
   { at: 820, type: 'turret', side: -1, y: 8 }, { at: 1000, type: 'head', n: 3 },
   { at: 1180, type: 'turret2' }, { at: 1360, type: 'ring', x: 2, y: 5 },
-  { at: 1520, type: 'turret', side: 1, y: 3 }, { at: 1700, type: 'head', n: 4 },
+  { at: 1480, type: 'vader' }, { at: 1700, type: 'head', n: 4 },
   { at: 1900, type: 'turret2' }, { at: 2080, type: 'ring', x: -2, y: 8 },
   { at: 2240, type: 'turret2' },
 ];
@@ -367,7 +383,7 @@ function spawnFoe(kind, x, y, z){
   mesh.position.set(x, y, z);
   if (kind === 'head') mesh.rotation.y = Math.PI;
   scene.add(mesh);
-  foes.push({ kind, x, y, z, hp: kind === 'chase' ? 3 : 1, mesh, phase: Math.random() * 6.28, shootT: 1.4 + Math.random() * 1.6, baseX: x, baseY: y, state: 'approach', duelT: 6.5 });
+  foes.push({ kind, x, y, z, hp: kind === 'chase' ? 3 : 1, mesh, phase: Math.random() * 6.28, shootT: 1.4 + Math.random() * 1.6, baseX: x, baseY: y, state: 'approach', duelT: 6.5, shootBase: 1.9, pts: 100 });
 }
 function spawnTurret(side, y, zOff = 150){
   const mesh = buildTurret();
@@ -392,6 +408,14 @@ function spawnEvent(ev){
       spawnFoe('head', (i - (ev.n - 1) / 2) * 4.2, 6.8 + ((i * 7) % 3) * 1.8, z - i * 9);
   } else if (ev.type === 'turret'){
     spawnTurret(ev.side, ev.y);
+  } else if (ev.type === 'vader'){
+    const mesh = buildTie(1.3);
+    mesh.children[2].rotation.y = 0.5; mesh.children[4].rotation.y = -0.5;
+    mesh.position.set(0, 7, S.pz - 165);
+    scene.add(mesh);
+    foes.push({ kind: 'vader', x: 0, y: 7, z: S.pz - 165, hp: 10, mesh, phase: 0, shootT: 1.2, baseX: 0, baseY: 7, state: 'approach', duelT: 13, shootBase: 1.15, pts: 1000 });
+    pop('⚠ VADER!', '#ef4444', 32);
+    beep(82, 0.7, 'sawtooth', 0.08, -10);
   } else if (ev.type === 'turret2'){
     spawnTurret(-1, 3 + Math.random() * 2);
     spawnTurret(1, 7 + Math.random() * 2);
@@ -410,10 +434,11 @@ function spawnBoss(){
   refreshHud();
 }
 function spawnCoreFight(){
-  const mesh = buildCoreTarget();
+  const mesh = buildPortTarget();
   scene.add(mesh);
-  S.coreFight = { mesh, hp: 20, fanT: 1.4, core: mesh.userData.core, glow: mesh.userData.glow, ring1: mesh.userData.ring1, ring2: mesh.userData.ring2 };
-  pop('REACTOR CORE!', '#4ade80', 32);
+  S.coreFight = { mesh, hp: 8, fanT: 1.2, portT: 60, foeT: 5, port: mesh.userData.port, glow: mesh.userData.glow };
+  pop('EXHAUST PORT!', '#fb923c', 32);
+  setTimeout(() => { if (S.mode === 'playing') pop('射程まで60秒… 急げ！', '#facc15', 22); }, 1200);
   refreshHud();
 }
 
@@ -492,18 +517,19 @@ function startGame(){
   Object.assign(S, { stage: 1, px: 0, py: 6.5, tx: 0, ty: 6.5, pz: 0, dist: 0, shield: 100, score: 0, hits: 0, fireT: 0, hurtT: 0, dmgFlash: 0, bossHp: 0, eventIdx: 0, rockT: 0 });
   trench.visible = false;
   planet.visible = true;
+  dsGroup.visible = false;
   ship.visible = true;
   $('titlePanel').style.display = 'none';
   $('resultPanel').style.display = 'none';
   S.mode = 'playing';
   refreshHud();
 }
-function startHyper(){
-  S.mode = 'hyper'; S.hyperT = 2.8;
+function startHyper(dest = 'stage2'){
+  S.mode = 'hyper'; S.hyperT = 2.8; S.hyperDest = dest;
   clearEntities();
   streaks.visible = true;
   sndHyper();
-  pop('HYPERDRIVE!', '#a5f3fc', 36);
+  pop(dest === 'clear' ? '💥 ESCAPE!' : 'HYPERDRIVE!', '#a5f3fc', 36);
 }
 function setupStage2(){
   S.stage = 2; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
@@ -514,8 +540,8 @@ function setupStage2(){
   streaks.visible = false;
   camera.fov = 66; camera.updateProjectionMatrix();
   S.mode = 'playing';
-  pop('STAGE 2 — TRENCH RUN', '#67e8f9', 30);
-  setTimeout(() => { if (S.mode === 'playing') pop('リアクターコアを破壊せよ', '#4ade80', 22); }, 1400);
+  pop('STAGE 2 — DEATH STAR', '#67e8f9', 30);
+  setTimeout(() => { if (S.mode === 'playing') pop('トレンチを抜けて排気口を撃て', '#fb923c', 22); }, 1400);
   refreshHud();
 }
 $('startBtn').addEventListener('click', () => { ac(); startGame(); });
@@ -526,7 +552,8 @@ function endGame(allClear){
   $('resultTitle').textContent = allClear ? '🎉 ALL CLEAR!' : 'GAME OVER';
   $('resultTitle').style.color = allClear ? '#4ade80' : '#f0abfc';
   $('resultScore').innerHTML = 'SCORE ' + S.score + ' · HITS ' + S.hits +
-    (allClear ? '<br>両ステージ制覇！ コア破壊完了' : '<br>STAGE ' + S.stage + ' · 到達 ' + Math.round(S.dist) + 'm');
+    (allClear ? '<br>デス・スター破壊！ 全ステージ制覇' : '<br>' + (S.overText || ('STAGE ' + S.stage + ' · 到達 ' + Math.round(S.dist) + 'm')));
+  S.overText = '';
   $('resultPanel').style.display = 'flex';
 }
 function damage(amount){
@@ -562,7 +589,7 @@ function killFoe(f, scored = true){
   scene.remove(f.mesh);
   boom(f.x, f.y, f.z, 0x93c5fd, 1.1);
   sndBoom(false);
-  if (scored){ S.score += 100; S.hits++; pop('+100', '#93c5fd', 20); refreshHud(); }
+  if (scored){ const pts = f.pts || 100; S.score += pts; S.hits++; pop('+' + pts, '#93c5fd', 20); refreshHud(); }
   f.dead = true;
 }
 
@@ -592,7 +619,7 @@ function animate(){
     camera.position.lerp(new THREE.Vector3(S.px * 0.62, S.py * 0.62 + 2.7, S.pz + 9.5), 0.14);
     camera.lookAt(S.px * 0.85, S.py * 0.85 + 0.3, S.pz - 30);
     reticle.visible = reticle2.visible = false;
-    if (S.hyperT <= 0) setupStage2();
+    if (S.hyperT <= 0){ if (S.hyperDest === 'clear'){ streaks.visible = false; camera.fov = 66; camera.updateProjectionMatrix(); endGame(true); } else setupStage2(); }
   }
   else if (S.mode === 'playing'){
     const inFight = !!S.boss || !!S.coreFight || S.dist >= cfg.len;
@@ -709,10 +736,15 @@ function animate(){
       /* stage 2 reactor core */
       if (S.coreFight){
         const cz = S.pz - 55;
-        if (Math.abs(sh.z - cz) < 3.4 && Math.hypot(sh.x - 0, sh.y - 6) < 3.4){
+        if (Math.abs(sh.z - cz) < 1.8 && Math.hypot(sh.x - 0, sh.y - 5.2) < 1.5){
           sh.z = 9999; S.coreFight.hp--;
-          boom(sh.x, sh.y, cz + 2, 0x4ade80, 0.7);
+          boom(sh.x, sh.y, cz + 1, 0xfb923c, 0.8);
+          pop('HIT!', '#fb923c', 18);
           refreshHud();
+        } else if (Math.abs(sh.z - cz) < 2.2 && Math.hypot(sh.x - 0, sh.y - 5.2) < 9){
+          sh.z = 9999;
+          boom(sh.x, sh.y, cz + 1, 0x9aa4b5, 0.35);
+          sndGuard();
         }
       }
     }
@@ -720,7 +752,7 @@ function animate(){
 
     /* foes */
     for (const f of foes){
-      if (f.kind === 'chase'){
+      if (f.kind === 'chase' || f.kind === 'vader'){
         const distA = S.pz - f.z;
         if (f.state === 'approach'){
           f.z -= 21 * dt;
@@ -733,7 +765,7 @@ function animate(){
           f.y = f.baseY + Math.sin(t * 1.4 + f.phase) * 1.1;
           f.duelT -= dt;
           f.shootT -= dt;
-          if (f.shootT <= 0){ fireEbolt(f.x, f.y, f.z, 36); f.shootT = 1.9 + Math.random() * 0.8; }
+          if (f.shootT <= 0){ fireEbolt(f.x, f.y, f.z, 36); f.shootT = f.shootBase + Math.random() * 0.7; }
           if (f.duelT <= 0) f.state = 'flee';
         } else {
           f.z -= 52 * dt;
@@ -830,7 +862,7 @@ function animate(){
           pop('DESTROYER DOWN! +2000', '#4ade80', 30);
           scene.remove(B.mesh); S.boss = null;
           refreshHud();
-          setTimeout(() => { if (S.mode === 'playing') startHyper(); }, 1500);
+          setTimeout(() => { if (S.mode === 'playing') startHyper('stage2'); }, 1500);
         }
       } else {
         const aliveDomes = B.domes.filter(d => d.alive);
@@ -841,28 +873,37 @@ function animate(){
       }
     }
 
-    /* stage 2 reactor core */
+    /* stage 2: exhaust port */
     if (S.coreFight){
       const C = S.coreFight, cz = S.pz - 55;
-      C.mesh.position.set(0, 6, cz);
-      C.ring1.rotation.z += dt * 0.8;
-      C.ring2.rotation.y += dt * 0.6;
-      C.glow.scale.setScalar(1 + Math.sin(t * 5) * 0.1);
+      C.mesh.position.set(0, 5.2, cz);
+      C.glow.scale.setScalar(1 + Math.sin(t * 5) * 0.12);
+      C.portT -= dt;
+      $('distVal').textContent = '⏱ ' + Math.max(0, Math.ceil(C.portT)) + 's';
+      if (C.portT <= 0){
+        boom(S.px, S.py, S.pz - 4, 0x4ade80, 3);
+        sndBoom(true);
+        S.overText = 'デス・スターの射程に入った…';
+        ship.visible = false;
+        endGame(false);
+        return;
+      }
       C.fanT -= dt;
       if (C.fanT <= 0){
-        fireEbolt(0, 6, cz, 35, -2.6, 0.8);
-        fireEbolt(0, 6, cz, 35, 0, -0.6);
-        fireEbolt(0, 6, cz, 35, 2.6, 0.8);
-        C.fanT = 1.7;
+        fireEbolt(-5.5, 8.5, cz, 35, 0.8, 0);
+        fireEbolt(5.5, 8.5, cz, 35, -0.8, 0);
+        C.fanT = 1.5;
       }
+      C.foeT -= dt;
+      if (C.foeT <= 0){ spawnFoe('head', (Math.random() * 2 - 1) * 4, 5 + Math.random() * 3, S.pz - 120); C.foeT = 7; }
       if (C.hp <= 0){
-        for (let i = 0; i < 8; i++) boom((Math.random() - 0.5) * 10, 6 + (Math.random() - 0.5) * 6, cz + (Math.random() - 0.5) * 6, i % 2 ? 0x4ade80 : 0xfacc15, 2 + Math.random() * 1.8);
+        for (let i = 0; i < 9; i++) boom((Math.random() - 0.5) * 12, 5 + (Math.random() - 0.5) * 7, cz + (Math.random() - 0.5) * 6, i % 2 ? 0xfb923c : 0xfacc15, 2 + Math.random() * 1.8);
         sndBoom(true);
         S.score += 3000;
-        pop('CORE DESTROYED! +3000', '#4ade80', 32);
+        pop('PORT DESTROYED! +3000', '#4ade80', 32);
         scene.remove(C.mesh); S.coreFight = null;
         refreshHud();
-        setTimeout(() => { if (S.mode === 'playing') endGame(true); }, 1600);
+        setTimeout(() => { if (S.mode === 'playing') startHyper('clear'); }, 1400);
       }
     }
     refreshHud();
@@ -883,6 +924,10 @@ function animate(){
   }
   stars.position.z = S.pz - 120;
   planet.position.z = S.pz - 190;
+  if (S.stage === 2 && S.mode === 'playing' && S.dist < 780 && !S.coreFight){
+    dsGroup.visible = true;
+    dsGroup.position.set(6, 16, S.pz - 430 + S.dist * 0.52);
+  } else dsGroup.visible = false;
   if (trench.visible) trench.position.z = S.pz + 20 - (S.dist % 30);
 
   for (let i = booms.length - 1; i >= 0; i--){
