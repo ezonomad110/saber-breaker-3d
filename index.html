@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v0.1</title>
+<title>SABER BREAKER 3D v0.1.1</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#05010f; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -116,7 +116,7 @@ const grid = new THREE.GridHelper(150, 75, 0x0e7490, 0x155e75);
 grid.position.y = 0; grid.material.transparent = true; grid.material.opacity = 0.5;
 scene.add(grid);
 const frontLine = new THREE.Mesh(
-  new THREE.BoxGeometry(24, 0.12, 0.3),
+  new THREE.BoxGeometry(28, 0.12, 0.3),
   new THREE.MeshBasicMaterial({ color: 0xf472b6 })
 );
 frontLine.position.set(0, 0.07, 6.5);
@@ -166,7 +166,7 @@ pGroup.add(arc);
 scene.add(pGroup);
 
 /* ============================== enemies ============================== */
-const COLS = 7, ROWS = 4, CDX = 3.4, RDZ = 3.1;
+const COLS = 7, ROWS = 4, CDX = 2.9, RDZ = 3.1;
 const ROW_HP = [3, 2, 1, 1];
 const ROW_PTS = [30, 20, 20, 10];
 let units = [];
@@ -496,8 +496,8 @@ function animate(){
         u.mesh.children[1].material.emissive.setHex(isTele ? 0xff2222 : 0xef4444);
         if (isTele) u.mesh.children[1].material.emissiveIntensity = 1.6 + Math.sin(S.time * 34) * 0.9;
       }
-      if (minX < -11.5 && form.dir < 0){ form.dir = 1; form.fz += 0.85 * tune.app; }
-      if (maxX > 11.5 && form.dir > 0){ form.dir = -1; form.fz += 0.85 * tune.app; }
+      if (minX < -13.5 && form.dir < 0){ form.dir = 1; form.fz += 0.7 * tune.app; }
+      if (maxX > 13.5 && form.dir > 0){ form.dir = -1; form.fz += 0.7 * tune.app; }
       if (frontZ >= FRONT_Z){ gameOver(); }
       frontLine.material.color.setHex(frontZ > FRONT_Z - 2.2 ? 0xef4444 : 0xf472b6);
 
