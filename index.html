@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v0.1.1</title>
+<title>SABER BREAKER 3D v0.2</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#05010f; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -42,7 +42,7 @@
   <div class="hudBox" id="livesBox"><small>LIFE</small><span id="livesVal">♥♥♥</span></div>
 </div>
 <div id="popLayer"></div>
-<div id="moveHint">ドラッグ：移動</div>
+<div id="moveHint">ドラッグ：移動（奥まで進んで直接斬れる）</div>
 <button id="swingBtn">⚔<br>SWING</button>
 <button id="tuneBtn">⚙</button>
 <div id="tunePanel">
@@ -124,7 +124,7 @@ scene.add(frontLine);
 
 /* ============================== player (robed master + saber) ============================== */
 const FRONT_Z = 6.5, FAR_Z = -46;
-const player = { x: 0, z: 10, tx: 0, tz: 10, swingT: 0, swingAnimT: 0, swingCd: 0, swingBufferT: 0, hurtT: 0, speed: 0, prevX: 0 };
+const player = { x: 0, z: 10, tx: 0, tz: 10, swingT: 0, swingAnimT: 0, swingCd: 0, swingBufferT: 0, hurtT: 0, speed: 0, prevX: 0, swingHits: new Set() };
 const SWING_ANIM = 0.36, SWING_ACTIVE = 0.55;
 const pGroup = new THREE.Group();
 const saberPivot = new THREE.Group();
@@ -161,7 +161,7 @@ const saberPivot = new THREE.Group();
 /* swing arc (afterimage fan) */
 const arcMat = new THREE.MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
 const arc = new THREE.Mesh(new THREE.CircleGeometry(2.35, 22, -0.4, 1.9), arcMat);
-arc.position.set(0.4, 1.5, 0.35);
+arc.position.set(0.4, 1.5, -0.35);
 pGroup.add(arc);
 scene.add(pGroup);
 
@@ -315,12 +315,13 @@ addEventListener('pointerdown', e => {
 addEventListener('pointermove', e => {
   if (!dragging || S.mode !== 'playing') return;
   player.tx = THREE.MathUtils.clamp(player.tx + (e.clientX - lastPX) * 0.030, -10, 10);
-  player.tz = THREE.MathUtils.clamp(player.tz + (e.clientY - lastPY) * 0.030, 7.2, 12.6);
+  player.tz = THREE.MathUtils.clamp(player.tz + (e.clientY - lastPY) * 0.042, -26, 12.6);
   lastPX = e.clientX; lastPY = e.clientY;
 });
 addEventListener('pointerup', () => dragging = false);
 addEventListener('pointercancel', () => dragging = false);
 function executeSwing(){
+  player.swingHits.clear();
   player.swingT = SWING_ACTIVE; player.swingAnimT = SWING_ANIM; player.swingCd = 0.42; player.swingBufferT = 0;
   beep(700, 0.07, 'sawtooth', 0.03, 500);
 }
@@ -384,6 +385,41 @@ function hitUnit(u, b, fromBack){
     if (b.hitSet) b.hitSet.clear();
   }
   refreshHud();
+}
+function meleeCheck(){
+  if (player.swingT <= 0) return;
+  for (const u of aliveUnits()){
+    if (player.swingHits.has(u)) continue;
+    const p = unitPos(u);
+    const dx = p.x - player.x, dz = player.z - p.z; // dz > 0: enemy in front
+    const reachX = u.kind === 'normal' ? 2.3 : 3.6;
+    if (Math.abs(dx) < reachX && dz > 0.2 && dz < 3.6){
+      player.swingHits.add(u);
+      u.hp -= 2; u.flashT = 0.13;
+      boom(p.x, p.y, p.z, 0x7dd3fc, 0.8);
+      sndClash(2);
+      pop('SLASH!', '#7dd3fc', 22);
+      if (u.hp <= 0){
+        u.alive = false; scene.remove(u.mesh);
+        S.score += u.pts;
+        boom(p.x, p.y, p.z, u.kind === 'normal' ? 0x93c5fd : 0xfacc15, u.kind === 'normal' ? 1 : 1.8);
+        sndBoom(u.kind !== 'normal');
+        refreshHud();
+      }
+    }
+  }
+}
+function contactCheck(){
+  if (player.hurtT > 0) return;
+  for (const u of aliveUnits()){
+    const p = unitPos(u);
+    if (Math.abs(p.x - player.x) < 1.5 && Math.abs(p.z - player.z) < 1.0){
+      damage();
+      player.tz = Math.min(player.tz + 4.5, 12.6); // knocked back toward home
+      boom(player.x, 1.6, player.z, 0xf87171, 0.9);
+      break;
+    }
+  }
 }
 function updateBolts(dt){
   for (const b of bolts){
@@ -530,6 +566,8 @@ function animate(){
           S.shootT = (1.1 + Math.random() * 0.9) * Math.max(0.5, 1 - (S.wave - 1) * 0.05);
         }
       }
+      meleeCheck();
+      contactCheck();
       updateBolts(dt);
     }
   } else {
@@ -551,7 +589,7 @@ function animate(){
   /* camera: behind the player, looking downrange */
   const cx = player.x * 0.55;
   camera.position.lerp(new THREE.Vector3(cx, 6.4, player.z + 10.5), 0.08);
-  camera.lookAt(player.x * 0.7, 1.8, -14);
+  camera.lookAt(player.x * 0.7, 1.8, player.z - 15);
   renderer.render(scene, camera);
 }
 buildWave();
