@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#05010f">
-<title>SABER BREAKER 3D v1.5 RAIL</title>
+<title>SABER BREAKER 3D v1.5.2 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -448,8 +448,9 @@ function pop(text, color = '#fff', size = 28){
   $('popLayer').appendChild(d);
   setTimeout(() => d.remove(), 1150);
 }
+const boomGeo = new THREE.SphereGeometry(0.7, 12, 10);
 function boom(x, y, z, col, scale = 1){
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 10), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const m = new THREE.Mesh(boomGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
   m.position.set(x, y, z);
   scene.add(m);
   booms.push({ m, t: 0, scale });
@@ -592,25 +593,26 @@ function stickSet(e){
   stickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
   stickVec.x = dx / max; stickVec.y = dy / max;
 }
-stickBase.addEventListener('pointerdown', e => { e.preventDefault(); stickId = e.pointerId; stickBase.setPointerCapture(e.pointerId); stickSet(e); });
+/* stick engagement: global pointerdown below (floating stick, left side of screen) */
 stickBase.addEventListener('pointermove', e => { if (e.pointerId === stickId) stickSet(e); });
-const stickEnd = e => { if (e.pointerId === stickId){ stickId = null; stickVec.x = 0; stickVec.y = 0; stickKnob.style.transform = 'translate(-50%,-50%)'; } };
+const stickEnd = e => { if (e.pointerId === stickId){ stickId = null; stickVec.x = 0; stickVec.y = 0; stickKnob.style.transform = 'translate(-50%,-50%)'; stickBase.style.left = ''; stickBase.style.top = ''; stickBase.style.bottom = ''; } };
 stickBase.addEventListener('pointerup', stickEnd);
 stickBase.addEventListener('pointercancel', stickEnd);
-let dragging = false, lastPX = 0, lastPY = 0;
+addEventListener('pointerup', stickEnd);
+addEventListener('pointercancel', stickEnd);
 addEventListener('pointerdown', e => {
-  if (e.target.closest('button, .overlay, #tunePanel, #stickBase')) return;
-  dragging = true; lastPX = e.clientX; lastPY = e.clientY;
+  if (S.mode !== 'playing' || stickId !== null) return;
+  if (e.target.closest('button, .overlay, #tunePanel, #fireBtn')) return;
+  if (e.clientX > innerWidth * 0.55) return;
+  e.preventDefault();
+  stickId = e.pointerId;
+  stickBase.style.left = Math.max(4, Math.min(innerWidth - 122, e.clientX - 59)) + 'px';
+  stickBase.style.top = Math.max(4, Math.min(innerHeight - 122, e.clientY - 59)) + 'px';
+  stickBase.style.bottom = 'auto';
+  try { stickBase.setPointerCapture(e.pointerId); } catch (err) {}
+  stickSet(e);
 });
-addEventListener('pointermove', e => {
-  if (!dragging || S.mode !== 'playing') return;
-  const cfg = STAGES[S.stage];
-  S.tx = THREE.MathUtils.clamp(S.tx + (e.clientX - lastPX) * 0.035, -cfg.bx, cfg.bx);
-  S.ty = THREE.MathUtils.clamp(S.ty - (e.clientY - lastPY) * 0.035, cfg.yMin, cfg.yMax);
-  lastPX = e.clientX; lastPY = e.clientY;
-});
-addEventListener('pointerup', () => dragging = false);
-addEventListener('pointercancel', () => dragging = false);
+addEventListener('pointermove', e => { if (e.pointerId === stickId) stickSet(e); });
 let firing = false;
 const fireBtn = $('fireBtn');
 fireBtn.addEventListener('pointerdown', e => { e.preventDefault(); ac(); firing = true; fireBtn.classList.add('on'); });
@@ -721,20 +723,33 @@ function damage(amount){
 }
 
 /* ============================== combat helpers ============================== */
+const beamCache = new Map();
+function beamAssets(colorHex, len, r){
+  const key2 = colorHex + '|' + len + '|' + r;
+  if (!beamCache.has(key2)){
+    const glowGeo = new THREE.CylinderGeometry(r, r, len, 8, 1, true); glowGeo.rotateX(Math.PI / 2);
+    const coreGeo = new THREE.CylinderGeometry(r * 0.45, r * 0.45, len * 1.02, 6); coreGeo.rotateX(Math.PI / 2);
+    const capGeo = new THREE.SphereGeometry(r * 0.45, 6, 5);
+    const glowMat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    beamCache.set(key2, { glowGeo, coreGeo, capGeo, glowMat, coreMat });
+  }
+  return beamCache.get(key2);
+}
 function buildBeam(colorHex, len, r){
+  const A = beamAssets(colorHex, len, r);
   const g = new THREE.Group();
-  const glowGeo = new THREE.CylinderGeometry(r, r, len, 8, 1, true); glowGeo.rotateX(Math.PI / 2);
-  const glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  const coreGeo = new THREE.CylinderGeometry(r * 0.45, r * 0.45, len * 1.02, 6); coreGeo.rotateX(Math.PI / 2);
-  const core = new THREE.Mesh(coreGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  const capGeo = new THREE.SphereGeometry(r * 0.45, 6, 5);
-  const capA = new THREE.Mesh(capGeo, core.material); capA.position.z = len * 0.51;
-  const capB = new THREE.Mesh(capGeo, core.material); capB.position.z = -len * 0.51;
+  const glow = new THREE.Mesh(A.glowGeo, A.glowMat);
+  const core = new THREE.Mesh(A.coreGeo, A.coreMat);
+  const capA = new THREE.Mesh(A.capGeo, A.coreMat); capA.position.z = len * 0.51;
+  const capB = new THREE.Mesh(A.capGeo, A.coreMat); capB.position.z = -len * 0.51;
   g.add(glow, core, capA, capB);
+  g.userData.shared = true;
   return g;
 }
 function zapMesh(m){
   scene.remove(m);
+  if (m.userData && m.userData.shared) return;
   m.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
 }
 const shotGeo = new THREE.SphereGeometry(0.16, 8, 6);
@@ -767,6 +782,7 @@ function killFoe(f, scored = true){
 
 /* ============================== main loop ============================== */
 const clock = new THREE.Clock();
+const _camV = new THREE.Vector3();
 function animate(){
   requestAnimationFrame(animate);
   if (S.paused){ renderer.render(scene, camera); return; }
@@ -789,7 +805,7 @@ function animate(){
       m.position.z += 175 * dt;
       if (m.position.z > 12) m.position.z -= 200;
     }
-    camera.position.lerp(new THREE.Vector3(S.px * 0.62, S.py * 0.62 + 2.7, S.pz + 9.5), 0.14);
+    _camV.set(S.px * 0.62, S.py * 0.62 + 2.7, S.pz + 9.5); camera.position.lerp(_camV, 1 - Math.exp(-8.5 * dt));
     camera.lookAt(S.px * 0.85, S.py * 0.85 + 0.3, S.pz - 30);
     reticle.visible = reticle2.visible = false;
     if (S.hyperT <= 0){ if (S.hyperDest === 'clear'){ streaks.visible = false; camera.fov = 66; camera.updateProjectionMatrix(); endGame(true); } else setupStage2(); }
@@ -937,9 +953,10 @@ function animate(){
           f.z -= (54 + speed) * dt;
           f.x += (f.baseX - f.x) * (1 - Math.exp(-2.2 * dt));
           f.y += (f.baseY - f.y) * (1 - Math.exp(-2.2 * dt));
-          if (S.pz - f.z >= 27){ f.state = 'duel'; f.baseX = f.x; f.baseY = f.y; }
+          if (S.pz - f.z >= 27){ f.state = 'duel'; f.baseX = f.x; f.baseY = f.y; f.duelAge = 0; }
         } else if (f.kind === 'streak' && f.state === 'duel'){
-          f.z = S.pz - 27 + Math.sin(t * 0.9 + f.phase) * 1.5;
+          f.duelAge = (f.duelAge || 0) + dt;
+          f.z = S.pz - 27 + Math.sin(t * 0.9 + f.phase) * 1.5 * Math.min(1, f.duelAge * 2);
           f.baseX += THREE.MathUtils.clamp(S.px - f.baseX, -1, 1) * 0.6 * dt;
           f.x = THREE.MathUtils.clamp(f.baseX + Math.sin(t * 1.15 + f.phase) * 2.1, -Math.min(10.5, cfg.bx), Math.min(10.5, cfg.bx));
           f.y = f.baseY + Math.sin(t * 1.4 + f.phase) * 1.1;
@@ -953,9 +970,11 @@ function animate(){
         } else if (f.state === 'approach'){
           f.z -= 21 * dt;
           f.x = f.baseX + Math.sin(t * 1.3 + f.phase) * 1.1;
-          if (distA <= 30) f.state = 'duel';
+          if (distA <= 30){ f.state = 'duel'; f.zOff = Math.max(20, S.pz - f.z); f.duelAge = 0; }
         } else if (f.state === 'duel'){
-          f.z = S.pz - 29 + Math.sin(t * 0.9 + f.phase) * 1.5;
+          f.duelAge += dt;
+          f.zOff += (29 - f.zOff) * (1 - Math.exp(-3 * dt));
+          f.z = S.pz - f.zOff + Math.sin(t * 0.9 + f.phase) * 1.5 * Math.min(1, f.duelAge * 2);
           f.baseX += THREE.MathUtils.clamp(S.px - f.baseX, -1, 1) * 0.6 * dt;
           f.x = THREE.MathUtils.clamp(f.baseX + Math.sin(t * 1.15 + f.phase) * 2.1, -Math.min(10.5, cfg.bx), Math.min(10.5, cfg.bx));
           f.y = f.baseY + Math.sin(t * 1.4 + f.phase) * 1.1;
@@ -1157,11 +1176,11 @@ function animate(){
     ship.position.set(Math.sin(t * 0.4) * 1.5, 6.5 + Math.sin(t * 0.8) * 0.5, 0);
     ship.rotation.z = Math.sin(t * 0.4) * 0.12;
     reticle.visible = reticle2.visible = false;
-    if (S.mode === 'title'){ camera.position.lerp(new THREE.Vector3(7.5, 9.5, 13), 0.05); camera.lookAt(0, 6, -6); }
+    if (S.mode === 'title'){ _camV.set(7.5, 9.5, 13); camera.position.lerp(_camV, 1 - Math.exp(-3 * dt)); camera.lookAt(0, 6, -6); }
   }
 
   if (S.mode === 'playing'){
-    camera.position.lerp(new THREE.Vector3(S.px * 0.62, S.py * 0.62 + 2.7, S.pz + 9.5), 0.14);
+    _camV.set(S.px * 0.62, S.py * 0.62 + 2.7, S.pz + 9.5); camera.position.lerp(_camV, 1 - Math.exp(-8.5 * dt));
     camera.lookAt(S.px * 0.85, S.py * 0.85 + 0.3, S.pz - 30);
     reticle.visible = reticle2.visible = true;
     reticle.position.set(S.px, S.py, S.pz - 26);
@@ -1181,7 +1200,7 @@ function animate(){
     const k = b.t / 0.34;
     b.m.scale.setScalar(b.scale * (0.5 + k * 1.8));
     b.m.material.opacity = Math.max(0, 0.9 * (1 - k));
-    if (k >= 1){ scene.remove(b.m); booms.splice(i, 1); }
+    if (k >= 1){ scene.remove(b.m); b.m.material.dispose(); booms.splice(i, 1); }
   }
   renderer.render(scene, camera);
 }
