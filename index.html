@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v1.3 RAIL</title>
+<title>SABER BREAKER 3D v1.3.1 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -31,6 +31,7 @@
   .overlay h1 { color:#f0abfc; font-size:37px; font-weight:900; letter-spacing:.04em; text-shadow:0 0 18px rgba(217,70,239,.8), 0 0 46px rgba(59,130,246,.6); }
   .overlay h1 span { display:block; font-size:15px; color:#67e8f9; letter-spacing:.38em; margin-top:4px; }
   .overlay p { color:#cffafe; font-size:14px; font-weight:700; line-height:1.8; }
+  .miniBtn { margin-top:14px; background:rgba(8,47,73,.55); border:1.5px solid rgba(125,211,252,.55); color:#bae6fd; font-size:12.5px; font-weight:700; letter-spacing:.06em; padding:8px 20px; border-radius:999px; }
   .bigBtn { background:#082f49; border:2px solid #38bdf8; color:#fff; font-size:18px; font-weight:800; letter-spacing:.1em; padding:13px 36px; border-radius:999px; box-shadow:0 0 18px rgba(56,189,248,.6); }
   #resultPanel { display:none; }
   #pauseBtn { position:fixed; right:60px; top:calc(96px + env(safe-area-inset-top)); z-index:7; width:40px; height:40px; border-radius:50%; border:2px solid rgba(255,255,255,.45); background:rgba(10,4,32,.65); color:#fff; font-size:15px; }
@@ -72,7 +73,8 @@
 <div class="overlay" id="titlePanel">
   <h1>SABER BREAKER<span>— RAIL RUN —</span></h1>
   <p>自動で前進するレールシューター。<br>左スティックで操縦、右ボタン長押しでレーザー連射。<br>リングをくぐるとシールド回復。ボスは<b>弱点</b>しか効かない。<br>全2ステージ、間はハイパードライブで繋ぐ。<br>STAGE 2はデス・スターのトレンチを抜けて、小さな<b>排気口</b>を撃て。</p>
-  <button class="bigBtn" id="startBtn">▶ LAUNCH</button>
+  <button class="bigBtn" id="startBtn">▶ LAUNCH</button><br>
+  <button class="miniBtn" id="stage2Btn">検証用：STAGE 2 から開始</button>
 </div>
 <div class="overlay" id="resultPanel">
   <h1 id="resultTitle">GAME OVER</h1>
@@ -625,6 +627,9 @@ function setupStage2(){
   refreshHud();
 }
 $('startBtn').addEventListener('click', () => { ac(); startGame(); });
+function startStage2(){ ac(); startGame(); setupStage2(); }
+$('stage2Btn').addEventListener('click', startStage2);
+if (new URLSearchParams(location.search).has('s2')) startStage2();
 $('retryBtn').addEventListener('click', () => { ac(); startGame(); });
 function endGame(allClear){
   S.mode = 'over';
