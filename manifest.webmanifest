@@ -1,0 +1,17 @@
+{
+  "name": "SABER BREAKER 3D — RAIL RUN",
+  "short_name": "SABER 3D",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#05010f",
+  "theme_color": "#05010f",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

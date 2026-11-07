@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v1.4.1 RAIL</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#05010f">
+<title>SABER BREAKER 3D v1.5 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -77,6 +82,7 @@
   <p>自動で前進するレールシューター。<br>左スティックで操縦、右ボタン長押しでレーザー連射。<br>リングをくぐるとシールド回復。ボスは<b>弱点</b>しか効かない。<br>全2ステージ、間はハイパードライブで繋ぐ。<br>STAGE 2はデス・スターのトレンチを抜けて、小さな<b>排気口</b>を撃て。</p>
   <button class="bigBtn" id="startBtn">▶ LAUNCH</button><br>
   <button class="miniBtn" id="stage2Btn">検証用：STAGE 2 から開始</button>
+  <p style="margin-top:16px; font-size:11.5px; line-height:1.7; color:rgba(186,230,253,.75);">📱 全画面で遊ぶには： Safariの「共有」→「ホーム画面に追加」して、追加したアイコンから起動（横向き推奨）</p>
 </div>
 <div class="overlay" id="resultPanel">
   <h1 id="resultTitle">GAME OVER</h1>
@@ -470,11 +476,11 @@ function refreshHud(){
 const EVENTS1 = [
   { at: 200, type: 'chase', n: 3 }, { at: 420, type: 'ring', x: 0, y: 7 },
   { at: 550, type: 'head', n: 3 }, { at: 850, type: 'chase', n: 4 },
-  { at: 1150, type: 'ring', x: -5, y: 9 }, { at: 1250, type: 'head', n: 4 },
+  { at: 1000, type: 'streak', n: 1 }, { at: 1150, type: 'ring', x: -5, y: 9 }, { at: 1250, type: 'head', n: 4 },
   { at: 1600, type: 'chase', n: 4 }, { at: 1950, type: 'ring', x: 5, y: 5 },
   { at: 2050, type: 'head', n: 5 }, { at: 2400, type: 'chase', n: 5 },
   { at: 2750, type: 'ring', x: 0, y: 10 }, { at: 2900, type: 'head', n: 5 },
-  { at: 3250, type: 'chase', n: 5 }, { at: 3550, type: 'ring', x: -4, y: 6 },
+  { at: 3100, type: 'streak', n: 2 }, { at: 3250, type: 'chase', n: 5 }, { at: 3550, type: 'ring', x: -4, y: 6 },
   { at: 3700, type: 'head', n: 6 },
 ];
 const EVENTS2 = [
@@ -482,10 +488,10 @@ const EVENTS2 = [
   { at: 380, type: 'head', n: 3 }, { at: 500, type: 'turret', side: 1, y: 8 },
   { at: 620, type: 'tower' }, { at: 760, type: 'turret2' },
   { at: 880, type: 'bridge', level: 'mid' }, { at: 1000, type: 'chase', n: 1 },
-  { at: 1120, type: 'head', n: 4 }, { at: 1240, type: 'ring', x: 0, y: 6 },
+  { at: 1080, type: 'streak', n: 1 }, { at: 1120, type: 'head', n: 4 }, { at: 1240, type: 'ring', x: 0, y: 6 },
   { at: 1360, type: 'tower' }, { at: 1480, type: 'vader' },
   { at: 1620, type: 'turret2' }, { at: 1740, type: 'head', n: 4 },
-  { at: 1860, type: 'bridge', level: 'high' }, { at: 1980, type: 'chase', n: 1 },
+  { at: 1860, type: 'bridge', level: 'high' }, { at: 1900, type: 'streak', n: 1 }, { at: 1980, type: 'chase', n: 1 },
   { at: 2080, type: 'tower' }, { at: 2180, type: 'turret2' },
   { at: 2280, type: 'bridge', level: 'mid' }, { at: 2380, type: 'head', n: 3 },
 ];
@@ -494,7 +500,7 @@ function spawnFoe(kind, x, y, z){
   mesh.position.set(x, y, z);
   if (kind === 'head') mesh.rotation.y = Math.PI;
   scene.add(mesh);
-  foes.push({ kind, x, y, z, hp: kind === 'chase' ? 3 : 1, mesh, phase: Math.random() * 6.28, shootT: 1.4 + Math.random() * 1.6, baseX: x, baseY: y, state: 'approach', duelT: 6.5, shootBase: 1.9, pts: 100 });
+  foes.push({ kind, x, y, z, hp: (kind === 'chase' || kind === 'streak') ? 3 : 1, mesh, phase: Math.random() * 6.28, shootT: 1.4 + Math.random() * 1.6, baseX: x, baseY: y, state: 'approach', duelT: 6.5, shootBase: kind === 'streak' ? 1.6 : 1.9, pts: kind === 'streak' ? 150 : 100 });
 }
 function spawnTurret(side, y, zOff = 150){
   const mesh = buildTurret();
@@ -525,6 +531,9 @@ function spawnEvent(ev){
     mesh.position.set(ev.x, ev.y, S.pz - 120);
     scene.add(mesh);
     rings.push({ x: ev.x, y: ev.y, z: S.pz - 120, mesh, taken: false });
+  } else if (ev.type === 'streak'){
+    for (let i = 0; i < ev.n; i++)
+      spawnFoe('streak', S.px + (i % 2 === 0 ? 3.4 : -3.4), S.py + 1.2, S.pz + 15 + i * 7);
   } else if (ev.type === 'chase'){
     for (let i = 0; i < ev.n; i++)
       spawnFoe('chase', (i - (ev.n - 1) / 2) * 4.4, 6.5 + (i % 2) * 2.4, z - Math.floor(i / 2) * 7);
@@ -922,9 +931,26 @@ function animate(){
 
     /* foes */
     for (const f of foes){
-      if (f.kind === 'chase' || f.kind === 'vader'){
+      if (f.kind === 'chase' || f.kind === 'vader' || f.kind === 'streak'){
         const distA = S.pz - f.z;
-        if (f.state === 'approach'){
+        if (f.kind === 'streak' && f.state === 'approach'){
+          f.z -= (54 + speed) * dt;
+          f.x += (f.baseX - f.x) * (1 - Math.exp(-2.2 * dt));
+          f.y += (f.baseY - f.y) * (1 - Math.exp(-2.2 * dt));
+          if (S.pz - f.z >= 27){ f.state = 'duel'; f.baseX = f.x; f.baseY = f.y; }
+        } else if (f.kind === 'streak' && f.state === 'duel'){
+          f.z = S.pz - 27 + Math.sin(t * 0.9 + f.phase) * 1.5;
+          f.baseX += THREE.MathUtils.clamp(S.px - f.baseX, -1, 1) * 0.6 * dt;
+          f.x = THREE.MathUtils.clamp(f.baseX + Math.sin(t * 1.15 + f.phase) * 2.1, -Math.min(10.5, cfg.bx), Math.min(10.5, cfg.bx));
+          f.y = f.baseY + Math.sin(t * 1.4 + f.phase) * 1.1;
+          f.duelT -= dt;
+          f.shootT -= dt;
+          if (f.shootT <= 0){ fireEbolt(f.x, f.y, f.z, 36); f.shootT = f.shootBase + Math.random() * 0.7; }
+          if (f.duelT <= 0) f.state = 'flee';
+        } else if (f.kind === 'streak'){
+          f.z -= 95 * dt;
+          if (S.pz - f.z > 200) f.dead = true;
+        } else if (f.state === 'approach'){
           f.z -= 21 * dt;
           f.x = f.baseX + Math.sin(t * 1.3 + f.phase) * 1.1;
           if (distA <= 30) f.state = 'duel';
@@ -954,7 +980,7 @@ function animate(){
         damage(12);
         if (S.mode !== 'playing') return;
       }
-      if (f.z > S.pz + 14) f.dead = true;
+      if (f.z > S.pz + 14 && f.kind !== 'streak') f.dead = true;
       if (f.dead) scene.remove(f.mesh);
     }
     foes = foes.filter(f => !f.dead);
