@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#05010f">
-<title>SABER BREAKER 3D v1.6.2 RAIL</title>
+<title>SABER BREAKER 3D v1.7 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -146,6 +146,7 @@ scene.add(planet);
 
 /* canyon (stage 3): planet surface — scrolling ground + rock walls + mesas + sun */
 const canyon = new THREE.Group();
+const canyonSegs = [];
 const canyonLight = new THREE.AmbientLight(0xffd9b0, 0);
 scene.add(canyonLight);
 let groundMesh, groundTex, sunMesh;
@@ -168,25 +169,26 @@ let groundMesh, groundTex, sunMesh;
   scene.add(groundMesh);
 
   const rockMats = [0x8a5a33, 0x7d5230, 0x96683c].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 }));
-  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), 1000);
-  rocks.frustumCulled = false;
-  let ri = 0;
+  const rockGeo = new THREE.DodecahedronGeometry(1);
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), SC = new THREE.Vector3(), CC = new THREE.Color(), E = new THREE.Euler();
   for (let i = 0; i < 18; i++){
     const seg = new THREE.Group();
-    const baseZ = -i * 30;
+    const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 52);
+    rocks.frustumCulled = false;
+    let ri = 0;
     for (const side of [-1, 1]){
       const wall = new THREE.Mesh(new THREE.BoxGeometry(7, 18, 30), rockMats[i % 3]);
-      wall.position.set(side * 14.5, 4, baseZ - 15);
+      wall.position.set(side * 14.5, 4, -15);
       seg.add(wall);
       const rim = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.9, 30), rockMats[2]);
-      rim.position.set(side * 14.5, 13.4, baseZ - 15);
+      rim.position.set(side * 14.5, 13.4, -15);
       seg.add(rim);
       const mesa = new THREE.Mesh(new THREE.BoxGeometry(12 + Math.random() * 8, 30, 10 + Math.random() * 8), rockMats[(i + 1) % 3]);
-      mesa.position.set(side * (30 + Math.random() * 8), 13, baseZ - 6 - Math.random() * 16);
+      mesa.position.set(side * (30 + Math.random() * 8), 13, -6 - Math.random() * 16);
       seg.add(mesa);
-      for (let k = 0; k < 26 && ri < 1000; k++){
-        V.set(side * (12.15 + Math.random() * 0.8), 0.4 + Math.random() * 12.5, baseZ - Math.random() * 30);
+      for (let k = 0; k < 26; k++){
+        V.set(side * (12.15 + Math.random() * 0.8), 0.4 + Math.random() * 12.5, -Math.random() * 30);
         const sc = 0.7 + Math.random() * 1.4;
         SC.set(sc, sc * (0.6 + Math.random() * 0.8), sc);
         E.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); Q.setFromEuler(E);
@@ -196,9 +198,11 @@ let groundMesh, groundTex, sunMesh;
         ri++;
       }
     }
+    seg.add(rocks);
+    seg.position.z = -i * 30;
     canyon.add(seg);
+    canyonSegs.push(seg);
   }
-  canyon.add(rocks);
   sunMesh = new THREE.Group();
   const sunCore = new THREE.Mesh(new THREE.CircleGeometry(20, 24), new THREE.MeshBasicMaterial({ color: 0xffc07a, transparent: true, opacity: 0.95, fog: false }));
   const sunHalo = new THREE.Mesh(new THREE.CircleGeometry(38, 24), new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.22, fog: false }));
@@ -209,6 +213,26 @@ let groundMesh, groundTex, sunMesh;
 }
 canyon.visible = false;
 scene.add(canyon);
+
+/* desert props (stage 3 open section, dist ~1280-2020): distant mesas and dunes */
+const desertProps = new THREE.Group();
+{
+  const dm = [0x8a5a33, 0x7d5230, 0x96683c].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  for (let k = 0; k < 10; k++){
+    const side = k % 2 === 0 ? -1 : 1;
+    const w = 16 + Math.random() * 14, h = 20 + Math.random() * 16, d = 14 + Math.random() * 10;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), dm[k % 3]);
+    m.position.set(side * (38 + Math.random() * 45), h / 2 - 2, -(1300 + k * 72 + Math.random() * 30));
+    desertProps.add(m);
+  }
+  for (let k = 0; k < 5; k++){
+    const dune = new THREE.Mesh(new THREE.BoxGeometry(34, 3, 18), dm[(k + 1) % 3]);
+    dune.position.set((k % 2 === 0 ? -1 : 1) * (24 + Math.random() * 26), 0.8, -(1340 + k * 150 + Math.random() * 40));
+    desertProps.add(dune);
+  }
+}
+desertProps.visible = false;
+scene.add(desertProps);
 
 /* hyperdrive streaks */
 const streaks = new THREE.Group();
@@ -569,10 +593,11 @@ const EVENTS3 = [
   { at: 150, type: 'ring', x: 0, y: 7 }, { at: 300, type: 'chase', n: 3 },
   { at: 480, type: 'mesa' }, { at: 640, type: 'head', n: 3 },
   { at: 820, type: 'gturret', side: -1 }, { at: 980, type: 'streak', n: 1 },
-  { at: 1150, type: 'mesa' }, { at: 1300, type: 'ring', x: -4, y: 9 },
-  { at: 1450, type: 'chase', n: 3 }, { at: 1650, type: 'gturret2' },
-  { at: 1830, type: 'vader' }, { at: 2050, type: 'mesa' },
-  { at: 2200, type: 'head', n: 4 }, { at: 2380, type: 'streak', n: 2 },
+  { at: 1150, type: 'mesa' }, { at: 1330, type: 'ring', x: -4, y: 9 },
+  { at: 1480, type: 'chase', n: 3 }, { at: 1640, type: 'streak', n: 2 },
+  { at: 1800, type: 'head', n: 4 }, { at: 1940, type: 'gturret2' },
+  { at: 2120, type: 'mesa' }, { at: 2260, type: 'vader' },
+  { at: 2440, type: 'chase', n: 3 },
 ];
 function spawnFoe(kind, x, y, z){
   const mesh = buildTie(kind === 'chase' ? 1.1 : 1.15);
@@ -828,6 +853,8 @@ function startGame(){
   $('pauseBtn').textContent = '⏸'; $('pauseLabel').style.display = 'none';
   trench.visible = false;
   canyon.visible = false;
+  resetCanyon();
+  desertProps.visible = false;
   groundMesh.visible = false;
   sunMesh.visible = false;
   stars.visible = true;
@@ -861,14 +888,17 @@ function setupStage2(){
   setTimeout(() => { if (S.mode === 'playing') pop('トレンチを抜けて排気口を撃て', '#fb923c', 22); }, 1400);
   refreshHud();
 }
+function resetCanyon(){ canyonSegs.forEach((seg, i) => { seg.position.z = -i * 30; seg.visible = true; }); }
 function setupStage3(){
   S.stage = 3; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
-  S.tx = 0; S.ty = 7; S.trickleT = 5;
+  S.tx = 0; S.ty = 7; S.trickleT = 5; S.desertPop = false;
   S.shield = Math.min(100, S.shield + 30);
   trench.visible = false;
   planet.visible = false;
   stars.visible = false;
   canyon.visible = true;
+  resetCanyon();
+  desertProps.visible = true;
   groundMesh.visible = true;
   sunMesh.visible = true;
   scene.background.set(0x743a12);
@@ -999,7 +1029,8 @@ function animate(){
     const speed = inFight ? 0 : 34 * tune.spd;
     if (!inFight){ S.dist += speed * dt; S.pz = -S.dist; }
     const kv = keyVec();
-    S.tx = THREE.MathUtils.clamp(S.tx + (stickVec.x + kv.x) * 24 * tune.sens * dt, -cfg.bx, cfg.bx);
+    const bxLim = (S.stage === 3 && S.dist > 1280 && S.dist < 2020) ? 16 : cfg.bx;
+    S.tx = THREE.MathUtils.clamp(S.tx + (stickVec.x + kv.x) * 24 * tune.sens * dt, -bxLim, bxLim);
     S.ty = THREE.MathUtils.clamp(S.ty + (-stickVec.y + kv.y) * 20 * tune.sens * dt, cfg.yMin, cfg.yMax);
     const prevPx = S.px, prevPy = S.py;
     S.px += (S.tx - S.px) * (1 - Math.exp(-8 * dt));
@@ -1013,6 +1044,7 @@ function animate(){
     if (S.guardPopT > 0) S.guardPopT -= dt;
     if (S.dmgFlash > 0){ S.dmgFlash = Math.max(0, S.dmgFlash - dt * 2.4); $('dmgFlash').style.opacity = S.dmgFlash * 0.9; }
 
+    if (S.stage === 3 && !S.desertPop && S.dist >= 1280){ S.desertPop = true; pop('OPEN DESERT!', '#fdba74', 28); }
     const EVENTS = S.stage === 1 ? EVENTS1 : S.stage === 2 ? EVENTS2 : EVENTS3;
     while (S.eventIdx < EVENTS.length && S.dist >= EVENTS[S.eventIdx].at){ spawnEvent(EVENTS[S.eventIdx]); S.eventIdx++; }
     if ((S.stage === 2 && !S.coreFight) || (S.stage === 3 && !S.walkerFight)){
@@ -1437,7 +1469,14 @@ function animate(){
   } else dsGroup.visible = false;
   if (trench.visible) trench.position.z = S.pz + 20 + (S.dist % 270);
   trenchLight.intensity = trench.visible ? 0.5 : 0;
-  if (canyon.visible){ canyon.position.z = S.pz + 20 + (S.dist % 270); groundMesh.position.z = S.pz - 170; groundTex.offset.y = (S.dist / 6.667) % 1; sunMesh.position.set(S.px * 0.15 + 40, 64, S.pz - 330); }
+  if (canyon.visible){
+    for (const seg of canyonSegs){
+      while (seg.position.z > S.pz + 25) seg.position.z -= 540;
+      const cDist = 15 - seg.position.z;
+      seg.visible = !(cDist > 1280 && cDist < 2020);
+    }
+    groundMesh.position.z = S.pz - 170; groundTex.offset.y = (S.dist / 6.667) % 1; sunMesh.position.set(S.px * 0.15 + 40, 64, S.pz - 330);
+  }
   canyonLight.intensity = canyon.visible ? 0.42 : 0;
 
   for (let i = booms.length - 1; i >= 0; i--){
