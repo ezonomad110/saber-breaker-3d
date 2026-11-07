@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v1.3.2 RAIL</title>
+<title>SABER BREAKER 3D v1.3.3 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -1045,7 +1045,7 @@ function animate(){
   planet.position.z = S.pz - 190;
   if (S.stage === 2 && S.mode === 'playing' && S.dist < 780 && !S.coreFight){
     dsGroup.visible = true;
-    dsGroup.position.set(6, 16, S.pz - 430 + S.dist * 0.52);
+    dsGroup.position.set(10, 58, S.pz - 430 + Math.min(S.dist * 0.35, 110));
   } else dsGroup.visible = false;
   if (trench.visible) trench.position.z = S.pz + 20 + (S.dist % 270);
   trenchLight.intensity = trench.visible ? 0.5 : 0;
