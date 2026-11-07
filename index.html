@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#05010f">
-<title>SABER BREAKER 3D v1.8 RAIL</title>
+<title>SABER BREAKER 3D v1.9 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -85,6 +85,7 @@
   <button class="bigBtn" id="startBtn">▶ LAUNCH</button><br>
   <button class="miniBtn" id="stage2Btn">検証用：STAGE 2 から開始</button>
   <button class="miniBtn" id="stage3Btn">検証用：STAGE 3 から開始</button>
+  <button class="miniBtn" id="stage4Btn">検証用：STAGE 4 から開始</button>
   <div style="display:flex; gap:10px; justify-content:center;">
     <button class="miniBtn" id="diffEasy">EASY</button>
     <button class="miniBtn" id="diffHard">HARD 🔥</button>
@@ -239,6 +240,64 @@ const desertProps = new THREE.Group();
 }
 desertProps.visible = false;
 scene.add(desertProps);
+
+/* Death Star surface (stage 2): greebled metal plain, trench channel running alongside */
+const dsSurface = new THREE.Group();
+{
+  const slabMats = [0x8b95a5, 0x7e8794, 0x959eac].map(c => new THREE.MeshStandardMaterial({ color: c, metalness: 0.35, roughness: 0.62 }));
+  const darkMatS = new THREE.MeshStandardMaterial({ color: 0x59616f, metalness: 0.35, roughness: 0.7 });
+  const greebles = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.35, roughness: 0.6 }), 1000);
+  const glows = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff }), 300);
+  greebles.frustumCulled = glows.frustumCulled = false;
+  let gi = 0, li = 0;
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), SC = new THREE.Vector3(), CC = new THREE.Color();
+  const put = (mesh, i, x, y, z, sx, sy, sz, color) => { V.set(x, y, z); SC.set(sx, sy, sz); M.compose(V, Q, SC); mesh.setMatrixAt(i, M); mesh.setColorAt(i, CC.set(color)); };
+  const grayHex = (lo = 0.42, hi = 0.75) => { const v = lo + Math.random() * (hi - lo); return new THREE.Color(v, v * 1.03, v * 1.12).getHex(); };
+  for (let i = 0; i < 18; i++){
+    const seg = new THREE.Group();
+    const baseZ = -i * 30;
+    const sm = slabMats[i % 3];
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(59, 2, 30), sm);
+    slab.position.set(-15.5, -1, baseZ - 15);
+    const tFloor = new THREE.Mesh(new THREE.BoxGeometry(14, 2, 30), darkMatS);
+    tFloor.position.set(21, -7, baseZ - 15);
+    const tWallN = new THREE.Mesh(new THREE.BoxGeometry(1.2, 4.5, 30), darkMatS);
+    tWallN.position.set(14.6, -4, baseZ - 15);
+    const tWallF = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6, 30), darkMatS);
+    tWallF.position.set(28.6, -3, baseZ - 15);
+    const slabR = new THREE.Mesh(new THREE.BoxGeometry(41, 2, 30), sm);
+    slabR.position.set(49.5, -1, baseZ - 15);
+    seg.add(slab, tFloor, tWallN, tWallF, slabR);
+    for (let k = 0; k < 30 && gi < 1000; k++){
+      const h = 0.4 + Math.random() * 3.0;
+      put(greebles, gi++, -42 + Math.random() * 52, h / 2, baseZ - Math.random() * 30, 0.8 + Math.random() * 3.6, h, 0.8 + Math.random() * 3.6, grayHex());
+    }
+    for (let k = 0; k < 8 && gi < 1000; k++){
+      const h = 0.4 + Math.random() * 2.4;
+      put(greebles, gi++, 31 + Math.random() * 34, h / 2, baseZ - Math.random() * 30, 1 + Math.random() * 3, h, 1 + Math.random() * 3, grayHex());
+    }
+    for (let k = 0; k < 6 && gi < 1000; k++){
+      const h = 0.4 + Math.random() * 1.6;
+      put(greebles, gi++, 16.5 + Math.random() * 10, -6 + h / 2, baseZ - Math.random() * 30, 0.8 + Math.random() * 2, h, 0.8 + Math.random() * 2, grayHex(0.3, 0.55));
+    }
+    for (let k = 0; k < 2; k++){
+      const h = 6 + Math.random() * 7;
+      const sp = new THREE.Mesh(new THREE.BoxGeometry(2.2 + Math.random(), h, 2.2 + Math.random()), slabMats[(i + k) % 3]);
+      sp.position.set(-36 + Math.random() * 40, h / 2, baseZ - 4 - Math.random() * 22);
+      seg.add(sp);
+    }
+    for (let k = 0; k < 12 && li < 300; k++){
+      const pick = Math.random();
+      const col = pick < 0.5 ? 0xffd9a3 : pick < 0.75 ? 0x7dd3fc : pick < 0.9 ? 0xff8c3a : 0xff3b30;
+      put(glows, li++, -40 + Math.random() * 50, 0.16, baseZ - Math.random() * 30, 0.5, 0.14, 0.5, col);
+    }
+    for (let k = 0; k < 3 && li < 300; k++) put(glows, li++, 15.4, -3 + Math.random() * 2, baseZ - Math.random() * 30, 0.12, 0.3, 0.8, 0xffb066);
+    dsSurface.add(seg);
+  }
+  dsSurface.add(greebles, glows);
+}
+dsSurface.visible = false;
+scene.add(dsSurface);
 
 /* hyperdrive streaks */
 const streaks = new THREE.Group();
@@ -526,8 +585,9 @@ function buildPortTarget(){
 /* ============================== game state ============================== */
 const STAGES = {
   1: { len: 4200, bx: 11, yMin: 1.4, yMax: 13 },
-  2: { len: 2500, bx: 6.8, yMin: 2.0, yMax: 10.5 },
-  3: { len: 2600, bx: 10.5, yMin: 1.6, yMax: 14 },
+  2: { len: 2400, bx: 13, yMin: 2.5, yMax: 16 },
+  3: { len: 2500, bx: 6.8, yMin: 2.0, yMax: 10.5 },
+  4: { len: 2600, bx: 10.5, yMin: 1.6, yMax: 14 },
 };
 const S = {
   mode: 'title', time: 0, stage: 1,
@@ -535,7 +595,7 @@ const S = {
   shield: 100, score: 0, hits: 0,
   fireT: 0, cannonIdx: 0, hurtT: 0, dmgFlash: 0, guardPopT: 0,
   boss: null, bossHp: 0, bossMaxHp: 12, bossSwayX: 0, paused: false,
-  coreFight: null, walkerFight: null, hyperT: 0, eventIdx: 0, rockT: 0, trickleT: 5, diff: 'easy', atkMul: 1, spdMul: 1,
+  coreFight: null, walkerFight: null, gateFight: null, hyperT: 0, eventIdx: 0, rockT: 0, trickleT: 5, diff: 'easy', atkMul: 1, spdMul: 1,
 };
 let foes = [], shots = [], ebolts = [], rings = [], rocks = [], turrets = [], bridges = [], towers = [], booms = [];
 const $ = id => document.getElementById(id);
@@ -565,6 +625,7 @@ function refreshHud(){
   $('shieldBar').style.background = S.shield > 50 ? 'linear-gradient(90deg,#22d3ee,#4ade80)' : S.shield > 25 ? 'linear-gradient(90deg,#f59e0b,#facc15)' : 'linear-gradient(90deg,#ef4444,#f87171)';
   if (S.coreFight) bossBarShow('EXHAUST PORT', S.coreFight.hp, 8);
   else if (S.walkerFight) bossBarShow('WALKER — WEAK: HEAD', S.walkerFight.hp, 30);
+  else if (S.gateFight) bossBarShow('SHIELD GENERATOR', S.gateFight.hp, 14);
   else if (S.boss) bossBarShow(S.boss.coreOpen ? 'CORE EXPOSED!' : 'WEAK POINTS: TURRETS', S.bossHp, S.bossMaxHp);
   else {
     $('bossWrap').style.display = 'none';
@@ -583,7 +644,7 @@ const EVENTS1 = [
   { at: 3100, type: 'streak', n: 2 }, { at: 3250, type: 'chase', n: 5 }, { at: 3550, type: 'ring', x: -4, y: 6 },
   { at: 3700, type: 'head', n: 6 },
 ];
-const EVENTS2 = [
+const EVENTS3 = [
   { at: 120, type: 'turret', side: -1, y: 3 }, { at: 260, type: 'bridge', level: 'low' },
   { at: 380, type: 'head', n: 3 }, { at: 500, type: 'turret', side: 1, y: 8 },
   { at: 620, type: 'tower' }, { at: 760, type: 'turret2' },
@@ -595,7 +656,16 @@ const EVENTS2 = [
   { at: 2080, type: 'tower' }, { at: 2180, type: 'turret2' },
   { at: 2280, type: 'bridge', level: 'mid' }, { at: 2380, type: 'head', n: 3 },
 ];
-const EVENTS3 = [
+const EVENTS2 = [
+  { at: 120, type: 'ring', x: 0, y: 8 }, { at: 260, type: 'chase', n: 3 },
+  { at: 440, type: 'gturret', side: -1 }, { at: 600, type: 'head', n: 3 },
+  { at: 780, type: 'tower' }, { at: 950, type: 'streak', n: 1 },
+  { at: 1120, type: 'gturret2' }, { at: 1280, type: 'ring', x: -5, y: 10 },
+  { at: 1440, type: 'chase', n: 4 }, { at: 1620, type: 'tower' },
+  { at: 1780, type: 'vader' }, { at: 1980, type: 'gturret2' },
+  { at: 2140, type: 'head', n: 4 }, { at: 2300, type: 'streak', n: 2 },
+];
+const EVENTS4 = [
   { at: 150, type: 'ring', x: 0, y: 7 }, { at: 300, type: 'chase', n: 3 },
   { at: 480, type: 'mesa' }, { at: 640, type: 'head', n: 3 },
   { at: 820, type: 'gturret', side: -1 }, { at: 980, type: 'streak', n: 1 },
@@ -766,6 +836,39 @@ function spawnWalkerFight(){
   beep(82, 0.6, 'sawtooth', 0.08, -14);
   refreshHud();
 }
+function buildGateTower(){
+  const g = new THREE.Group();
+  const hull = new THREE.MeshStandardMaterial({ color: 0x8b95a5, metalness: 0.4, roughness: 0.55 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x49505c, metalness: 0.4, roughness: 0.6 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(17, 3, 17), dark);
+  base.position.y = 1.5;
+  const spire = new THREE.Mesh(new THREE.BoxGeometry(5.5, 9, 5.5), hull);
+  spire.position.y = 7.5;
+  const collar = new THREE.Mesh(new THREE.BoxGeometry(8, 1.6, 8), dark);
+  collar.position.y = 11.5;
+  const domeMat = new THREE.MeshStandardMaterial({ color: 0x164e63, emissive: 0x22d3ee, emissiveIntensity: 1.6, roughness: 0.3 });
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(2.6, 16, 12), domeMat);
+  dome.position.y = 13.6;
+  const turretL = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), hull);
+  turretL.position.set(-7, 4.5, 2);
+  const turretR = turretL.clone(); turretR.position.x = 7;
+  const marker = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.1, 4), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+  marker.rotation.x = Math.PI;
+  marker.position.y = 17.6;
+  g.add(base, spire, collar, dome, turretL, turretR, marker);
+  g.userData = { dome, domeMat, marker };
+  return g;
+}
+function spawnGateFight(){
+  const mesh = buildGateTower();
+  mesh.position.set(0, 0, S.pz - 55);
+  scene.add(mesh);
+  S.gateFight = { mesh, hp: 14, fanT: 1.2, foeT: 5, dome: mesh.userData.dome, domeMat: mesh.userData.domeMat, marker: mesh.userData.marker };
+  pop('SHIELD TOWER!', '#f43f5e', 32);
+  setTimeout(() => { if (S.mode === 'playing') pop('ドームが弱点！', '#facc15', 22); }, 1200);
+  beep(98, 0.6, 'sawtooth', 0.08, -16);
+  refreshHud();
+}
 
 /* ============================== input ============================== */
 const stickVec = { x: 0, y: 0 };
@@ -864,6 +967,7 @@ function clearEntities(){
   if (S.boss){ scene.remove(S.boss.mesh); S.boss = null; }
   if (S.coreFight){ scene.remove(S.coreFight.mesh); S.coreFight = null; }
   if (S.walkerFight){ scene.remove(S.walkerFight.mesh); S.walkerFight = null; }
+  if (S.gateFight){ scene.remove(S.gateFight.mesh); S.gateFight = null; }
   foes = []; rings = []; rocks = []; shots = []; ebolts = []; turrets = []; bridges = []; towers = [];
 }
 function startGame(){
@@ -872,6 +976,7 @@ function startGame(){
   $('pauseBtn').textContent = '⏸'; $('pauseLabel').style.display = 'none';
   trench.visible = false;
   canyon.visible = false;
+  dsSurface.visible = false;
   resetCanyon();
   desertProps.visible = false;
   groundMesh.visible = false;
@@ -894,11 +999,12 @@ function startHyper(dest = 'stage2'){
   sndHyper();
   pop(dest === 'clear' ? '💥 ESCAPE!' : 'HYPERDRIVE!', '#a5f3fc', 36);
 }
-function setupStage2(){
-  S.stage = 2; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
+function setupStage3(){
+  S.stage = 3; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
   S.tx = 0; S.ty = 6.5; S.trickleT = 5;
   S.shield = Math.min(100, S.shield + 30);
   trench.visible = true;
+  dsSurface.visible = false;
   planet.visible = false;
   streaks.visible = false;
   camera.fov = 66; camera.updateProjectionMatrix();
@@ -908,14 +1014,15 @@ function setupStage2(){
   refreshHud();
 }
 function resetCanyon(){ canyonSegs.forEach((seg, i) => { seg.position.z = -i * 30; seg.visible = true; }); }
-function setupStage3(){
-  S.stage = 3; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
+function setupStage4(){
+  S.stage = 4; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
   S.tx = 0; S.ty = 7; S.trickleT = 5; S.desertPop = false;
   S.shield = Math.min(100, S.shield + 30);
   trench.visible = false;
   planet.visible = false;
   stars.visible = false;
   canyon.visible = true;
+  dsSurface.visible = false;
   resetCanyon();
   desertProps.visible = true;
   groundMesh.visible = true;
@@ -929,6 +1036,27 @@ function setupStage3(){
   setTimeout(() => { if (S.mode === 'playing') pop('渓谷を抜けて歩行要塞を倒せ', '#facc15', 22); }, 1400);
   refreshHud();
 }
+function setupStage2(){
+  S.stage = 2; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
+  S.tx = 0; S.ty = 8; S.trickleT = 5;
+  S.shield = Math.min(100, S.shield + 30);
+  trench.visible = false;
+  canyon.visible = false;
+  desertProps.visible = false;
+  groundMesh.visible = false;
+  sunMesh.visible = false;
+  stars.visible = true;
+  planet.visible = true;
+  scene.background.set(0x040110);
+  scene.fog.color.set(0x040110);
+  dsSurface.visible = true;
+  streaks.visible = false;
+  camera.fov = 66; camera.updateProjectionMatrix();
+  S.mode = 'playing';
+  pop('STAGE 2 — DEATH STAR SURFACE', '#67e8f9', 28);
+  setTimeout(() => { if (S.mode === 'playing') pop('表面を抜けてシールドタワーを壊せ', '#fb923c', 21); }, 1400);
+  refreshHud();
+}
 $('startBtn').addEventListener('click', () => { ac(); startGame(); });
 function startStage2(){ ac(); startGame(); setupStage2(); }
 $('stage2Btn').addEventListener('click', startStage2);
@@ -936,6 +1064,9 @@ if (new URLSearchParams(location.search).has('s2')) startStage2();
 function startStage3(){ ac(); startGame(); setupStage3(); }
 $('stage3Btn').addEventListener('click', startStage3);
 if (new URLSearchParams(location.search).has('s3')) startStage3();
+function startStage4(){ ac(); startGame(); setupStage4(); }
+$('stage4Btn').addEventListener('click', startStage4);
+if (new URLSearchParams(location.search).has('s4')) startStage4();
 $('retryBtn').addEventListener('click', () => { ac(); startGame(); });
 function endGame(allClear){
   S.mode = 'over';
@@ -1041,14 +1172,14 @@ function animate(){
     _camV.set(S.px * 0.62, S.py * 0.62 + 2.7, S.pz + 9.5); camera.position.lerp(_camV, 1 - Math.exp(-8.5 * dt));
     camera.lookAt(S.px * 0.85, S.py * 0.85 + 0.3, S.pz - 30);
     reticle.visible = reticle2.visible = false;
-    if (S.hyperT <= 0){ if (S.hyperDest === 'clear'){ streaks.visible = false; camera.fov = 66; camera.updateProjectionMatrix(); endGame(true); } else if (S.hyperDest === 'stage3') setupStage3(); else setupStage2(); }
+    if (S.hyperT <= 0){ if (S.hyperDest === 'clear'){ streaks.visible = false; camera.fov = 66; camera.updateProjectionMatrix(); endGame(true); } else if (S.hyperDest === 'stage3') setupStage3(); else if (S.hyperDest === 'stage4') setupStage4(); else setupStage2(); }
   }
   else if (S.mode === 'playing'){
-    const inFight = !!S.boss || !!S.coreFight || !!S.walkerFight || S.dist >= cfg.len;
+    const inFight = !!S.boss || !!S.coreFight || !!S.walkerFight || !!S.gateFight || S.dist >= cfg.len;
     const speed = inFight ? 0 : 34 * tune.spd * S.spdMul;
     if (!inFight){ S.dist += speed * dt; S.pz = -S.dist; }
     const kv = keyVec();
-    const bxLim = (S.stage === 3 && S.dist > 1280 && S.dist < 2020) ? 16 : cfg.bx;
+    const bxLim = (S.stage === 4 && S.dist > 1280 && S.dist < 2020) ? 16 : cfg.bx;
     S.tx = THREE.MathUtils.clamp(S.tx + (stickVec.x + kv.x) * 24 * tune.sens * S.spdMul * dt, -bxLim, bxLim);
     S.ty = THREE.MathUtils.clamp(S.ty + (-stickVec.y + kv.y) * 20 * tune.sens * S.spdMul * dt, cfg.yMin, cfg.yMax);
     const prevPx = S.px, prevPy = S.py;
@@ -1063,21 +1194,22 @@ function animate(){
     if (S.guardPopT > 0) S.guardPopT -= dt;
     if (S.dmgFlash > 0){ S.dmgFlash = Math.max(0, S.dmgFlash - dt * 2.4); $('dmgFlash').style.opacity = S.dmgFlash * 0.9; }
 
-    if (S.stage === 3 && !S.desertPop && S.dist >= 1280){ S.desertPop = true; pop('OPEN DESERT!', '#fdba74', 28); }
-    const EVENTS = S.stage === 1 ? EVENTS1 : S.stage === 2 ? EVENTS2 : EVENTS3;
+    if (S.stage === 4 && !S.desertPop && S.dist >= 1280){ S.desertPop = true; pop('OPEN DESERT!', '#fdba74', 28); }
+    const EVENTS = S.stage === 1 ? EVENTS1 : S.stage === 2 ? EVENTS2 : S.stage === 3 ? EVENTS3 : EVENTS4;
     while (S.eventIdx < EVENTS.length && S.dist >= EVENTS[S.eventIdx].at){ spawnEvent(EVENTS[S.eventIdx]); S.eventIdx++; }
-    if ((S.stage === 2 && !S.coreFight) || (S.stage === 3 && !S.walkerFight)){
+    if ((S.stage === 3 && !S.coreFight) || (S.stage === 4 && !S.walkerFight) || (S.stage === 2 && !S.gateFight)){
       S.trickleT -= dt;
       if (S.trickleT <= 0){ spawnFoe('head', (Math.random() * 2 - 1) * 5, 3.5 + Math.random() * 6, S.pz - 175); S.trickleT = 6.5 * S.atkMul; }
     }
     if (S.stage === 1 && S.dist >= cfg.len && !S.boss) spawnBoss();
-    if (S.stage === 2 && S.dist >= cfg.len && !S.coreFight) spawnCoreFight();
-    if (S.stage === 3 && S.dist >= cfg.len && !S.walkerFight) spawnWalkerFight();
+    if (S.stage === 3 && S.dist >= cfg.len && !S.coreFight) spawnCoreFight();
+    if (S.stage === 4 && S.dist >= cfg.len && !S.walkerFight) spawnWalkerFight();
+    if (S.stage === 2 && S.dist >= cfg.len && !S.gateFight) spawnGateFight();
 
     /* rocks: stage 1 space + drift during end fights */
     S.rockT -= dt;
     let rockInterval = -1, rockVz = 0;
-    if (inFight){ rockInterval = (S.boss || S.coreFight || S.walkerFight) ? -1 : 0.9; rockVz = 20 * S.spdMul; }
+    if (inFight){ rockInterval = (S.boss || S.coreFight || S.walkerFight || S.gateFight) ? -1 : 0.9; rockVz = 20 * S.spdMul; }
     else if (S.stage === 1) rockInterval = (S.dist > 1500 && S.dist < 3350) ? 0.42 : 1.5;
     if (rockInterval > 0 && S.rockT <= 0){
       S.rockT = rockInterval;
@@ -1179,7 +1311,24 @@ function animate(){
         }
       }
     }
-    /* stage 3 walker: head is the weak point, hull is armored */
+    /* stage 2 shield tower: dome is the weak point, structure is armored */
+    for (const sh of shots){
+      if (!S.gateFight) break;
+      if (sh.z > 9000) continue;
+      const G = S.gateFight, cz2 = S.pz - 55;
+      if (Math.abs(sh.z - cz2) < 2.6 && Math.hypot(sh.x - 0, sh.y - 13.6) < 2.9){
+        sh.z = 9999; G.hp--;
+        boom(sh.x, sh.y, cz2 + 1, 0x22d3ee, 0.9);
+        pop('HIT!', '#67e8f9', 18);
+        refreshHud();
+      } else if (Math.abs(sh.z - cz2) < 9 && Math.abs(sh.x) < 9.5 && sh.y > 0 && sh.y < 12.4){
+        sh.z = 9999;
+        boom(sh.x, sh.y, sh.z + 1, 0x9aa4b5, 0.35);
+        sndGuard();
+        if (S.guardPopT <= 0){ pop('NO DAMAGE', '#94a3b8', 17); S.guardPopT = 1.4; }
+      }
+    }
+    /* stage 4 walker: head is the weak point, hull is armored */
     for (const sh of shots){
       if (!S.walkerFight) break;
       if (sh.z > 9000) continue;
@@ -1425,7 +1574,36 @@ function animate(){
         pop('PORT DESTROYED! +3000', '#4ade80', 32);
         scene.remove(C.mesh); S.coreFight = null;
         refreshHud();
-        setTimeout(() => { if (S.mode === 'playing') startHyper('stage3'); }, 1400);
+        setTimeout(() => { if (S.mode === 'playing') startHyper('stage4'); }, 1400);
+      }
+    }
+    if (S.gateFight){
+      const G = S.gateFight, cz = S.pz - 55;
+      G.dome.scale.setScalar(1 + Math.sin(t * 5) * 0.08);
+      G.marker.position.y = 17.6 + Math.sin(t * 3.2) * 0.35;
+      G.fanT -= dt;
+      if (G.fanT <= 0){
+        fireEbolt(-7, 5.5, cz + 4, 36, 0.8, 0);
+        fireEbolt(7, 5.5, cz + 4, 36, -0.8, 0);
+        fireEbolt(0, 12, cz + 3, 36, 0, 0);
+        if (S.diff === 'hard'){ fireEbolt(-3.5, 8, cz + 4, 36, 0.4, 0); fireEbolt(3.5, 8, cz + 4, 36, -0.4, 0); }
+        G.fanT = 1.45 * S.atkMul;
+      }
+      G.foeT -= dt;
+      if (G.foeT <= 0){
+        spawnFoe('head', -2.5, 6 + Math.random() * 3, S.pz - 120);
+        spawnFoe('head', 2.5, 7 + Math.random() * 3, S.pz - 128);
+        if (!foes.some(f => f.kind === 'chase')) spawnFoe('chase', (Math.random() * 2 - 1) * 4, 8, S.pz - 120);
+        G.foeT = 8 * S.atkMul;
+      }
+      if (G.hp <= 0){
+        for (let i = 0; i < 8; i++) boom((Math.random() - 0.5) * 14, 2 + Math.random() * 12, cz + (Math.random() - 0.5) * 8, i % 2 ? 0xfb923c : 0x22d3ee, 2 + Math.random() * 1.7);
+        sndBoom(true);
+        S.score += 2500;
+        pop('SHIELD DOWN! +2500', '#4ade80', 30);
+        scene.remove(G.mesh); S.gateFight = null;
+        refreshHud();
+        setTimeout(() => { if (S.mode === 'playing') startHyper('stage3'); }, 1500);
       }
     }
     if (S.walkerFight){
@@ -1485,7 +1663,7 @@ function animate(){
   }
   stars.position.z = S.pz - 120;
   planet.position.z = S.pz - 190;
-  if (S.stage === 2 && S.mode === 'playing' && S.dist < 780 && !S.coreFight){
+  if (S.stage === 3 && S.mode === 'playing' && S.dist < 780 && !S.coreFight){
     dsGroup.visible = true;
     dsGroup.position.set(10, 58, S.pz - 430 + Math.min(S.dist * 0.35, 110));
   } else dsGroup.visible = false;
@@ -1500,6 +1678,7 @@ function animate(){
     groundMesh.position.z = S.pz - 170; groundTex.offset.y = (S.dist / 6.667) % 1; sunMesh.position.set(S.px * 0.15 + 40, 64, S.pz - 330);
   }
   canyonLight.intensity = canyon.visible ? 0.42 : 0;
+  if (dsSurface.visible) dsSurface.position.z = S.pz + 20 + (S.dist % 270);
 
   for (let i = booms.length - 1; i >= 0; i--){
     const b = booms[i]; b.t += dt;
