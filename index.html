@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v1.4 RAIL</title>
+<title>SABER BREAKER 3D v1.4.1 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -22,6 +22,8 @@
   #popLayer { position:fixed; inset:0; pointer-events:none; z-index:6; overflow:hidden; }
   .pop { position:absolute; left:50%; transform:translateX(-50%); font-weight:900; white-space:nowrap; text-shadow:0 0 12px currentColor, 0 2px 2px rgba(0,0,0,.6); animation:popRise 1.1s ease-out forwards; }
   @keyframes popRise { 0%{opacity:0; scale:.7;} 15%{opacity:1; scale:1.1;} 30%{scale:1;} 75%{opacity:1;} 100%{opacity:0; margin-top:-24px;} }
+  body { touch-action: none; overscroll-behavior: none; }
+  canvas { touch-action: none; }
   #dmgFlash { position:fixed; inset:0; z-index:4; pointer-events:none; background:radial-gradient(ellipse at center, transparent 55%, rgba(239,68,68,.55) 100%); opacity:0; }
   #stickBase { position:fixed; left:18px; bottom:calc(24px + env(safe-area-inset-bottom)); z-index:7; width:118px; height:118px; border-radius:50%; border:2px solid rgba(103,232,249,.55); background:radial-gradient(circle, rgba(14,60,90,.35), rgba(8,30,50,.55)); }
   #stickKnob { position:absolute; left:50%; top:50%; width:52px; height:52px; border-radius:50%; background:radial-gradient(circle at 35% 30%, rgba(125,211,252,.95), rgba(2,90,160,.95)); border:2px solid rgba(255,255,255,.6); transform:translate(-50%,-50%); box-shadow:0 0 14px rgba(56,189,248,.6); }
@@ -336,7 +338,9 @@ function buildBridge(level){
   const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.3), lampMat); lamp.position.set(0, cy - 1.55, 1.2);
   const lamp2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.3), lampMat); lamp2.position.set(-5.5, cy - 1.0, 1.45);
   const lamp3 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.3), lampMat); lamp3.position.set(5.5, cy - 1.0, 1.45);
-  g.add(beam, block, capL, capR, lamp, lamp2, lamp3);
+  const gunL = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 1.5), dark); gunL.position.set(-4.5, cy - 1.15, 1.0);
+  const gunR = gunL.clone(); gunR.position.x = 4.5;
+  g.add(beam, block, capL, capR, lamp, lamp2, lamp3, gunL, gunR);
   g.userData = { y0: cy - 1.3, y1: cy + 1.3, cy };
   return g;
 }
@@ -427,7 +431,7 @@ const S = {
   shield: 100, score: 0, hits: 0,
   fireT: 0, cannonIdx: 0, hurtT: 0, dmgFlash: 0, guardPopT: 0,
   boss: null, bossHp: 0, bossMaxHp: 12, bossSwayX: 0, paused: false,
-  coreFight: null, hyperT: 0, eventIdx: 0, rockT: 0,
+  coreFight: null, hyperT: 0, eventIdx: 0, rockT: 0, trickleT: 5,
 };
 let foes = [], shots = [], ebolts = [], rings = [], rocks = [], turrets = [], bridges = [], towers = [], booms = [];
 const $ = id => document.getElementById(id);
@@ -475,13 +479,15 @@ const EVENTS1 = [
 ];
 const EVENTS2 = [
   { at: 120, type: 'turret', side: -1, y: 3 }, { at: 260, type: 'bridge', level: 'low' },
-  { at: 420, type: 'turret', side: 1, y: 8 }, { at: 560, type: 'tower' },
-  { at: 720, type: 'turret2' }, { at: 880, type: 'bridge', level: 'mid' },
-  { at: 1020, type: 'head', n: 3 }, { at: 1180, type: 'ring', x: 0, y: 6 },
-  { at: 1300, type: 'tower' }, { at: 1480, type: 'vader' },
-  { at: 1700, type: 'head', n: 4 }, { at: 1840, type: 'bridge', level: 'high' },
-  { at: 1980, type: 'turret2' }, { at: 2100, type: 'tower' },
-  { at: 2240, type: 'bridge', level: 'mid' }, { at: 2360, type: 'turret2' },
+  { at: 380, type: 'head', n: 3 }, { at: 500, type: 'turret', side: 1, y: 8 },
+  { at: 620, type: 'tower' }, { at: 760, type: 'turret2' },
+  { at: 880, type: 'bridge', level: 'mid' }, { at: 1000, type: 'chase', n: 1 },
+  { at: 1120, type: 'head', n: 4 }, { at: 1240, type: 'ring', x: 0, y: 6 },
+  { at: 1360, type: 'tower' }, { at: 1480, type: 'vader' },
+  { at: 1620, type: 'turret2' }, { at: 1740, type: 'head', n: 4 },
+  { at: 1860, type: 'bridge', level: 'high' }, { at: 1980, type: 'chase', n: 1 },
+  { at: 2080, type: 'tower' }, { at: 2180, type: 'turret2' },
+  { at: 2280, type: 'bridge', level: 'mid' }, { at: 2380, type: 'head', n: 3 },
 ];
 function spawnFoe(kind, x, y, z){
   const mesh = buildTie(kind === 'chase' ? 1.1 : 1.15);
@@ -503,8 +509,7 @@ function spawnBridge(level){
   const z = S.pz - 165;
   mesh.position.set(0, 0, z);
   scene.add(mesh);
-  bridges.push({ z, y0: mesh.userData.y0, y1: mesh.userData.y1, cy: mesh.userData.cy, mesh, done: false, passed: false });
-  pop(level === 'low' ? '⚠ 橋 — 上を越えろ！' : level === 'high' ? '⚠ 橋 — 下をくぐれ！' : '⚠ 橋 — 上か下へ！', '#fb923c', 24);
+  bridges.push({ z, y0: mesh.userData.y0, y1: mesh.userData.y1, cy: mesh.userData.cy, mesh, done: false, passed: false, shootT: 0.8 + Math.random() * 1.2 });
 }
 function spawnTower(){
   const mesh = buildTower();
@@ -512,7 +517,6 @@ function spawnTower(){
   mesh.position.set(x, 0, z);
   scene.add(mesh);
   towers.push({ x, z, hp: 5, mesh, shootT: 1.2 + Math.random(), hitDone: false, dead: false });
-  pop('⚠ 監視塔 — 左右に避けろ！', '#fb923c', 24);
 }
 function spawnEvent(ev){
   const z = S.pz - 165;
@@ -625,6 +629,10 @@ function setPaused(v){
 }
 $('pauseBtn').addEventListener('click', () => setPaused(!S.paused));
 document.addEventListener('visibilitychange', () => { if (document.hidden && S.mode === 'playing') setPaused(true); });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('gesturechange', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 function bindSlider(id, valId, k){
   const el = $(id); el.value = tune[k];
   const show = () => $(valId).textContent = '×' + tune[k].toFixed(2);
@@ -649,7 +657,7 @@ function clearEntities(){
 }
 function startGame(){
   clearEntities();
-  Object.assign(S, { stage: 1, px: 0, py: 6.5, tx: 0, ty: 6.5, pz: 0, dist: 0, shield: 100, score: 0, hits: 0, fireT: 0, hurtT: 0, dmgFlash: 0, bossHp: 0, eventIdx: 0, rockT: 0, paused: false });
+  Object.assign(S, { stage: 1, px: 0, py: 6.5, tx: 0, ty: 6.5, pz: 0, dist: 0, shield: 100, score: 0, hits: 0, fireT: 0, hurtT: 0, dmgFlash: 0, bossHp: 0, eventIdx: 0, rockT: 0, paused: false, trickleT: 5 });
   $('pauseBtn').textContent = '⏸'; $('pauseLabel').style.display = 'none';
   trench.visible = false;
   planet.visible = true;
@@ -669,7 +677,7 @@ function startHyper(dest = 'stage2'){
 }
 function setupStage2(){
   S.stage = 2; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
-  S.tx = 0; S.ty = 6.5;
+  S.tx = 0; S.ty = 6.5; S.trickleT = 5;
   S.shield = Math.min(100, S.shield + 30);
   trench.visible = true;
   planet.visible = false;
@@ -798,6 +806,10 @@ function animate(){
 
     const EVENTS = S.stage === 1 ? EVENTS1 : EVENTS2;
     while (S.eventIdx < EVENTS.length && S.dist >= EVENTS[S.eventIdx].at){ spawnEvent(EVENTS[S.eventIdx]); S.eventIdx++; }
+    if (S.stage === 2 && !S.coreFight){
+      S.trickleT -= dt;
+      if (S.trickleT <= 0){ spawnFoe('head', (Math.random() * 2 - 1) * 5, 3.5 + Math.random() * 6, S.pz - 175); S.trickleT = 6.5; }
+    }
     if (S.stage === 1 && S.dist >= cfg.len && !S.boss) spawnBoss();
     if (S.stage === 2 && S.dist >= cfg.len && !S.coreFight) spawnCoreFight();
 
@@ -851,16 +863,6 @@ function animate(){
       if (sh.z > 9000) continue;
       for (const r of rocks){
         if (Math.abs(sh.z - r.z) < r.r && Math.hypot(sh.x - r.x, sh.y - r.y) < r.r){ sh.z = 9999; boom(sh.x, sh.y, sh.z + 1, 0xd6c8a8, 0.4); break; }
-      }
-      if (sh.z > 9000) continue;
-      for (const tw of towers){
-        if (tw.dead) continue;
-        if (Math.abs(sh.z - tw.z) < 2.0 && Math.abs(sh.x - tw.x) < 2.2 && sh.y < 13.8){
-          sh.z = 9999; tw.hp--;
-          boom(sh.x, sh.y, tw.z + 1, 0xfacc15, 0.5);
-          if (tw.hp <= 0){ tw.dead = true; zapMesh(tw.mesh); S.score += 200; S.hits++; pop('TOWER DOWN +200', '#facc15', 20); sndBoom(false); boom(tw.x, 7, tw.z, 0xfb923c, 1.7); refreshHud(); }
-          break;
-        }
       }
       if (sh.z > 9000) continue;
       /* boss weak points only */
@@ -929,7 +931,7 @@ function animate(){
         } else if (f.state === 'duel'){
           f.z = S.pz - 29 + Math.sin(t * 0.9 + f.phase) * 1.5;
           f.baseX += THREE.MathUtils.clamp(S.px - f.baseX, -1, 1) * 0.6 * dt;
-          f.x = THREE.MathUtils.clamp(f.baseX + Math.sin(t * 1.15 + f.phase) * 2.1, -10.5, 10.5);
+          f.x = THREE.MathUtils.clamp(f.baseX + Math.sin(t * 1.15 + f.phase) * 2.1, -Math.min(10.5, cfg.bx), Math.min(10.5, cfg.bx));
           f.y = f.baseY + Math.sin(t * 1.4 + f.phase) * 1.1;
           f.duelT -= dt;
           f.shootT -= dt;
@@ -983,6 +985,8 @@ function animate(){
 
     /* bridges: duck under, climb over, or crash */
     for (const b of bridges){
+      b.shootT -= dt;
+      if (b.shootT <= 0 && b.z < S.pz - 15 && b.z > S.pz - 140){ fireEbolt(-4.5, b.cy - 1.2, b.z + 1.2, 33); fireEbolt(4.5, b.cy - 1.2, b.z + 1.2, 33); b.shootT = 2.4 + Math.random() * 0.6; }
       if (!b.done && S.pz < b.z + 1.4 && S.pz > b.z - 2.4){
         if (S.py + 0.65 > b.y0 && S.py - 0.65 < b.y1){
           b.done = true;
@@ -1102,10 +1106,15 @@ function animate(){
       if (C.fanT <= 0){
         fireEbolt(-5.5, 8.5, cz, 35, 0.8, 0);
         fireEbolt(5.5, 8.5, cz, 35, -0.8, 0);
-        C.fanT = 1.5;
+        C.fanT = 1.25;
       }
       C.foeT -= dt;
-      if (C.foeT <= 0){ spawnFoe('head', (Math.random() * 2 - 1) * 4, 5 + Math.random() * 3, S.pz - 120); C.foeT = 7; }
+      if (C.foeT <= 0){
+        spawnFoe('head', -2.5, 5 + Math.random() * 3, S.pz - 120);
+        spawnFoe('head', 2.5, 6 + Math.random() * 3, S.pz - 128);
+        if (!foes.some(f => f.kind === 'chase')) spawnFoe('chase', (Math.random() * 2 - 1) * 3, 7, S.pz - 120);
+        C.foeT = 8;
+      }
       if (C.hp <= 0){
         for (let i = 0; i < 9; i++) boom((Math.random() - 0.5) * 12, 5 + (Math.random() - 0.5) * 7, cz + (Math.random() - 0.5) * 6, i % 2 ? 0xfb923c : 0xfacc15, 2 + Math.random() * 1.8);
         sndBoom(true);
