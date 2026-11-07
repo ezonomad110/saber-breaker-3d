@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#05010f">
-<title>SABER BREAKER 3D v1.5.2 RAIL</title>
+<title>SABER BREAKER 3D v1.6 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -82,6 +82,7 @@
   <p>自動で前進するレールシューター。<br>左スティックで操縦、右ボタン長押しでレーザー連射。<br>リングをくぐるとシールド回復。ボスは<b>弱点</b>しか効かない。<br>全2ステージ、間はハイパードライブで繋ぐ。<br>STAGE 2はデス・スターのトレンチを抜けて、小さな<b>排気口</b>を撃て。</p>
   <button class="bigBtn" id="startBtn">▶ LAUNCH</button><br>
   <button class="miniBtn" id="stage2Btn">検証用：STAGE 2 から開始</button>
+  <button class="miniBtn" id="stage3Btn">検証用：STAGE 3 から開始</button>
   <p style="margin-top:16px; font-size:11.5px; line-height:1.7; color:rgba(186,230,253,.75);">📱 全画面で遊ぶには： Safariの「共有」→「ホーム画面に追加」して、追加したアイコンから起動（横向き推奨）</p>
 </div>
 <div class="overlay" id="resultPanel">
@@ -142,6 +143,64 @@ scene.add(stars);
 const planet = new THREE.Mesh(new THREE.SphereGeometry(26, 24, 18), new THREE.MeshStandardMaterial({ color: 0x7c5cbf, roughness: 0.9, emissive: 0x1c1038 }));
 planet.position.set(-58, 26, -190);
 scene.add(planet);
+
+/* canyon (stage 3): planet surface — scrolling ground + rock walls + mesas + sun */
+const canyon = new THREE.Group();
+const canyonLight = new THREE.AmbientLight(0xffd9b0, 0);
+scene.add(canyonLight);
+let groundMesh, groundTex, sunMesh;
+{
+  const cnv = document.createElement('canvas'); cnv.width = cnv.height = 256;
+  const g2 = cnv.getContext('2d');
+  g2.fillStyle = '#8a5a33'; g2.fillRect(0, 0, 256, 256);
+  const dots = ['#7a4c2a', '#9c6b3f', '#6e4526', '#a5713f', '#7d5230'];
+  for (let i = 0; i < 2400; i++){ g2.fillStyle = dots[i % dots.length]; g2.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 3, 1 + Math.random() * 3); }
+  g2.strokeStyle = 'rgba(90,58,32,.55)'; g2.lineWidth = 1.4;
+  for (let i = 0; i < 7; i++){ g2.beginPath(); let x = Math.random() * 256, y = Math.random() * 256; g2.moveTo(x, y); for (let k = 0; k < 4; k++){ x += (Math.random() - 0.5) * 60; y += (Math.random() - 0.5) * 60; g2.lineTo(x, y); } g2.stroke(); }
+  groundTex = new THREE.CanvasTexture(cnv);
+  groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
+  groundTex.repeat.set(36, 60);
+  groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(240, 400), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1 }));
+  groundMesh.rotation.x = -Math.PI / 2;
+  groundMesh.position.y = 0;
+  groundMesh.visible = false;
+  scene.add(groundMesh);
+
+  const rockMats = [0x8a5a33, 0x7d5230, 0x96683c].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 }));
+  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), 520);
+  rocks.frustumCulled = false;
+  let ri = 0;
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), SC = new THREE.Vector3(), CC = new THREE.Color(), E = new THREE.Euler();
+  for (let i = 0; i < 9; i++){
+    const seg = new THREE.Group();
+    const baseZ = -i * 30;
+    for (const side of [-1, 1]){
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(7, 30, 30), rockMats[i % 3]);
+      wall.position.set(side * 14.5, 9, baseZ - 15);
+      seg.add(wall);
+      const mesa = new THREE.Mesh(new THREE.BoxGeometry(12 + Math.random() * 8, 30, 10 + Math.random() * 8), rockMats[(i + 1) % 3]);
+      mesa.position.set(side * (30 + Math.random() * 8), 13, baseZ - 6 - Math.random() * 16);
+      seg.add(mesa);
+      for (let k = 0; k < 26 && ri < 520; k++){
+        V.set(side * (12.6 + Math.random() * 0.9), 0.4 + Math.random() * 21, baseZ - Math.random() * 30);
+        const sc = 0.5 + Math.random() * 1.1;
+        SC.set(sc, sc * (0.6 + Math.random() * 0.8), sc);
+        E.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); Q.setFromEuler(E);
+        M.compose(V, Q, SC);
+        rocks.setMatrixAt(ri, M);
+        rocks.setColorAt(ri, CC.set([0x8a5a33, 0x74482a, 0x9c6b3f, 0x654321][ri % 4]));
+        ri++;
+      }
+    }
+    canyon.add(seg);
+  }
+  canyon.add(rocks);
+  sunMesh = new THREE.Mesh(new THREE.CircleGeometry(16, 24), new THREE.MeshBasicMaterial({ color: 0xffb066, transparent: true, opacity: 0.9, fog: false }));
+  sunMesh.visible = false;
+  scene.add(sunMesh);
+}
+canyon.visible = false;
+scene.add(canyon);
 
 /* hyperdrive streaks */
 const streaks = new THREE.Group();
@@ -430,6 +489,7 @@ function buildPortTarget(){
 const STAGES = {
   1: { len: 4200, bx: 11, yMin: 1.4, yMax: 13 },
   2: { len: 2500, bx: 6.8, yMin: 2.0, yMax: 10.5 },
+  3: { len: 2600, bx: 10.5, yMin: 1.6, yMax: 14 },
 };
 const S = {
   mode: 'title', time: 0, stage: 1,
@@ -437,7 +497,7 @@ const S = {
   shield: 100, score: 0, hits: 0,
   fireT: 0, cannonIdx: 0, hurtT: 0, dmgFlash: 0, guardPopT: 0,
   boss: null, bossHp: 0, bossMaxHp: 12, bossSwayX: 0, paused: false,
-  coreFight: null, hyperT: 0, eventIdx: 0, rockT: 0, trickleT: 5,
+  coreFight: null, walkerFight: null, hyperT: 0, eventIdx: 0, rockT: 0, trickleT: 5,
 };
 let foes = [], shots = [], ebolts = [], rings = [], rocks = [], turrets = [], bridges = [], towers = [], booms = [];
 const $ = id => document.getElementById(id);
@@ -466,6 +526,7 @@ function refreshHud(){
   $('shieldBar').style.width = Math.max(0, S.shield) + '%';
   $('shieldBar').style.background = S.shield > 50 ? 'linear-gradient(90deg,#22d3ee,#4ade80)' : S.shield > 25 ? 'linear-gradient(90deg,#f59e0b,#facc15)' : 'linear-gradient(90deg,#ef4444,#f87171)';
   if (S.coreFight) bossBarShow('EXHAUST PORT', S.coreFight.hp, 8);
+  else if (S.walkerFight) bossBarShow('WALKER — WEAK: HEAD', S.walkerFight.hp, 30);
   else if (S.boss) bossBarShow(S.boss.coreOpen ? 'CORE EXPOSED!' : 'WEAK POINTS: TURRETS', S.bossHp, S.bossMaxHp);
   else {
     $('bossWrap').style.display = 'none';
@@ -496,6 +557,15 @@ const EVENTS2 = [
   { at: 2080, type: 'tower' }, { at: 2180, type: 'turret2' },
   { at: 2280, type: 'bridge', level: 'mid' }, { at: 2380, type: 'head', n: 3 },
 ];
+const EVENTS3 = [
+  { at: 150, type: 'ring', x: 0, y: 7 }, { at: 300, type: 'chase', n: 3 },
+  { at: 480, type: 'mesa' }, { at: 640, type: 'head', n: 3 },
+  { at: 820, type: 'gturret', side: -1 }, { at: 980, type: 'streak', n: 1 },
+  { at: 1150, type: 'mesa' }, { at: 1300, type: 'ring', x: -4, y: 9 },
+  { at: 1450, type: 'chase', n: 3 }, { at: 1650, type: 'gturret2' },
+  { at: 1830, type: 'vader' }, { at: 2050, type: 'mesa' },
+  { at: 2200, type: 'head', n: 4 }, { at: 2380, type: 'streak', n: 2 },
+];
 function spawnFoe(kind, x, y, z){
   const mesh = buildTie(kind === 'chase' ? 1.1 : 1.15);
   mesh.position.set(x, y, z);
@@ -524,6 +594,28 @@ function spawnTower(){
   mesh.position.set(x, 0, z);
   scene.add(mesh);
   towers.push({ x, z, hp: 5, mesh, shootT: 1.2 + Math.random(), hitDone: false, dead: false });
+}
+function buildMesa(){
+  const g = new THREE.Group();
+  const rock = new THREE.MeshStandardMaterial({ color: 0x8a5a33, roughness: 1 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x74482a, roughness: 1 });
+  const spire = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 3.6, 13.5, 7), rock);
+  spire.position.y = 6.75;
+  const ring1 = new THREE.Mesh(new THREE.CylinderGeometry(3.95, 3.95, 0.55, 7), dark);
+  ring1.position.y = 3.4;
+  const ring2 = new THREE.Mesh(new THREE.CylinderGeometry(2.9, 2.9, 0.5, 7), dark);
+  ring2.position.y = 8.6;
+  const cap = new THREE.Mesh(new THREE.DodecahedronGeometry(1.9), rock);
+  cap.position.y = 13.7; cap.scale.y = 0.65;
+  g.add(spire, ring1, ring2, cap);
+  return g;
+}
+function spawnMesa(){
+  const mesh = buildMesa();
+  const x = (Math.random() * 2 - 1) * 5.5, z = S.pz - 165;
+  mesh.position.set(x, 0, z);
+  scene.add(mesh);
+  towers.push({ x, z, mesh, kind: 'mesa', shootT: 1, hitDone: false, dead: false });
 }
 function spawnEvent(ev){
   const z = S.pz - 165;
@@ -558,6 +650,13 @@ function spawnEvent(ev){
   } else if (ev.type === 'turret2'){
     spawnTurret(-1, 3 + Math.random() * 2);
     spawnTurret(1, 7 + Math.random() * 2);
+  } else if (ev.type === 'mesa'){
+    spawnMesa();
+  } else if (ev.type === 'gturret'){
+    spawnTurret(ev.side, 0.55);
+  } else if (ev.type === 'gturret2'){
+    spawnTurret(-1, 0.55);
+    spawnTurret(1, 0.55);
   }
 }
 function spawnBoss(){
@@ -578,6 +677,54 @@ function spawnCoreFight(){
   S.coreFight = { mesh, hp: 8, fanT: 1.2, portT: 60, foeT: 5, port: mesh.userData.port, glow: mesh.userData.glow };
   pop('EXHAUST PORT!', '#fb923c', 32);
   setTimeout(() => { if (S.mode === 'playing') pop('射程まで60秒… 急げ！', '#facc15', 22); }, 1200);
+  refreshHud();
+}
+function buildWalker(){
+  const g = new THREE.Group();
+  const hull = new THREE.MeshStandardMaterial({ color: 0x6b7280, metalness: 0.45, roughness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x3f4652, metalness: 0.45, roughness: 0.6 });
+  const legs = [];
+  for (const [lx, lz] of [[-3.1, 4.5], [3.1, 4.5], [-3.1, -4.5], [3.1, -4.5]]){
+    const hip = new THREE.Group();
+    hip.position.set(lx, 7.6, lz);
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.95, 4.6, 0.95), dark);
+    leg.position.y = -2.3;
+    const shin = new THREE.Mesh(new THREE.BoxGeometry(0.8, 3.6, 0.8), hull);
+    shin.position.set(0, -5.9, 0.25);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.7, 2.4), dark);
+    foot.position.set(0, -7.6, 0.45);
+    hip.add(leg, shin, foot);
+    legs.push(hip);
+    g.add(hip);
+  }
+  const body = new THREE.Mesh(new THREE.BoxGeometry(8.6, 4.6, 11.5), hull);
+  body.position.y = 9.8;
+  const belly = new THREE.Mesh(new THREE.BoxGeometry(7.2, 1.8, 9), dark);
+  belly.position.y = 7.2;
+  const hatch = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.7, 0.9, 10), dark);
+  hatch.position.y = 12.5;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.4, 3.2), hull);
+  head.position.set(0, 8.0, 7.0);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff2222 }));
+  eye.position.set(0, 8.3, 8.65);
+  const gunGeo = new THREE.CylinderGeometry(0.16, 0.16, 1.7, 6); gunGeo.rotateX(Math.PI / 2);
+  const gunL = new THREE.Mesh(gunGeo, dark); gunL.position.set(-1.1, 7.2, 8.3);
+  const gunR = gunL.clone(); gunR.position.x = 1.1;
+  const marker = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.1, 4), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+  marker.rotation.x = Math.PI;
+  marker.position.set(0, 11.4, 7.0);
+  g.add(body, belly, hatch, head, eye, gunL, gunR, marker);
+  g.userData = { legs, marker };
+  return g;
+}
+function spawnWalkerFight(){
+  const mesh = buildWalker();
+  scene.add(mesh);
+  S.walkerFight = { mesh, hp: 30, wz: S.pz - 95, swayX: 0, fireT: 1.8, foeT: 6, legs: mesh.userData.legs, marker: mesh.userData.marker };
+  mesh.position.set(0, 0, S.pz - 95);
+  pop('WALKER!', '#f43f5e', 34);
+  setTimeout(() => { if (S.mode === 'playing') pop('頭部が弱点！ 近づかれる前に倒せ', '#facc15', 22); }, 1300);
+  beep(82, 0.6, 'sawtooth', 0.08, -14);
   refreshHud();
 }
 
@@ -664,6 +811,7 @@ function clearEntities(){
   for (const tw of towers) zapMesh(tw.mesh);
   if (S.boss){ scene.remove(S.boss.mesh); S.boss = null; }
   if (S.coreFight){ scene.remove(S.coreFight.mesh); S.coreFight = null; }
+  if (S.walkerFight){ scene.remove(S.walkerFight.mesh); S.walkerFight = null; }
   foes = []; rings = []; rocks = []; shots = []; ebolts = []; turrets = []; bridges = []; towers = [];
 }
 function startGame(){
@@ -671,6 +819,12 @@ function startGame(){
   Object.assign(S, { stage: 1, px: 0, py: 6.5, tx: 0, ty: 6.5, pz: 0, dist: 0, shield: 100, score: 0, hits: 0, fireT: 0, hurtT: 0, dmgFlash: 0, bossHp: 0, eventIdx: 0, rockT: 0, paused: false, trickleT: 5 });
   $('pauseBtn').textContent = '⏸'; $('pauseLabel').style.display = 'none';
   trench.visible = false;
+  canyon.visible = false;
+  groundMesh.visible = false;
+  sunMesh.visible = false;
+  stars.visible = true;
+  scene.background.set(0x040110);
+  scene.fog.color.set(0x040110);
   planet.visible = true;
   dsGroup.visible = false;
   ship.visible = true;
@@ -699,10 +853,32 @@ function setupStage2(){
   setTimeout(() => { if (S.mode === 'playing') pop('トレンチを抜けて排気口を撃て', '#fb923c', 22); }, 1400);
   refreshHud();
 }
+function setupStage3(){
+  S.stage = 3; S.dist = 0; S.pz = 0; S.eventIdx = 0; S.rockT = 0;
+  S.tx = 0; S.ty = 7; S.trickleT = 5;
+  S.shield = Math.min(100, S.shield + 30);
+  trench.visible = false;
+  planet.visible = false;
+  stars.visible = false;
+  canyon.visible = true;
+  groundMesh.visible = true;
+  sunMesh.visible = true;
+  scene.background.set(0x40200f);
+  scene.fog.color.set(0x40200f);
+  streaks.visible = false;
+  camera.fov = 66; camera.updateProjectionMatrix();
+  S.mode = 'playing';
+  pop('STAGE 3 — CANYON RUN', '#fdba74', 30);
+  setTimeout(() => { if (S.mode === 'playing') pop('渓谷を抜けて歩行要塞を倒せ', '#facc15', 22); }, 1400);
+  refreshHud();
+}
 $('startBtn').addEventListener('click', () => { ac(); startGame(); });
 function startStage2(){ ac(); startGame(); setupStage2(); }
 $('stage2Btn').addEventListener('click', startStage2);
 if (new URLSearchParams(location.search).has('s2')) startStage2();
+function startStage3(){ ac(); startGame(); setupStage3(); }
+$('stage3Btn').addEventListener('click', startStage3);
+if (new URLSearchParams(location.search).has('s3')) startStage3();
 $('retryBtn').addEventListener('click', () => { ac(); startGame(); });
 function endGame(allClear){
   S.mode = 'over';
@@ -808,10 +984,10 @@ function animate(){
     _camV.set(S.px * 0.62, S.py * 0.62 + 2.7, S.pz + 9.5); camera.position.lerp(_camV, 1 - Math.exp(-8.5 * dt));
     camera.lookAt(S.px * 0.85, S.py * 0.85 + 0.3, S.pz - 30);
     reticle.visible = reticle2.visible = false;
-    if (S.hyperT <= 0){ if (S.hyperDest === 'clear'){ streaks.visible = false; camera.fov = 66; camera.updateProjectionMatrix(); endGame(true); } else setupStage2(); }
+    if (S.hyperT <= 0){ if (S.hyperDest === 'clear'){ streaks.visible = false; camera.fov = 66; camera.updateProjectionMatrix(); endGame(true); } else if (S.hyperDest === 'stage3') setupStage3(); else setupStage2(); }
   }
   else if (S.mode === 'playing'){
-    const inFight = !!S.boss || !!S.coreFight || S.dist >= cfg.len;
+    const inFight = !!S.boss || !!S.coreFight || !!S.walkerFight || S.dist >= cfg.len;
     const speed = inFight ? 0 : 34 * tune.spd;
     if (!inFight){ S.dist += speed * dt; S.pz = -S.dist; }
     const kv = keyVec();
@@ -829,19 +1005,20 @@ function animate(){
     if (S.guardPopT > 0) S.guardPopT -= dt;
     if (S.dmgFlash > 0){ S.dmgFlash = Math.max(0, S.dmgFlash - dt * 2.4); $('dmgFlash').style.opacity = S.dmgFlash * 0.9; }
 
-    const EVENTS = S.stage === 1 ? EVENTS1 : EVENTS2;
+    const EVENTS = S.stage === 1 ? EVENTS1 : S.stage === 2 ? EVENTS2 : EVENTS3;
     while (S.eventIdx < EVENTS.length && S.dist >= EVENTS[S.eventIdx].at){ spawnEvent(EVENTS[S.eventIdx]); S.eventIdx++; }
-    if (S.stage === 2 && !S.coreFight){
+    if ((S.stage === 2 && !S.coreFight) || (S.stage === 3 && !S.walkerFight)){
       S.trickleT -= dt;
       if (S.trickleT <= 0){ spawnFoe('head', (Math.random() * 2 - 1) * 5, 3.5 + Math.random() * 6, S.pz - 175); S.trickleT = 6.5; }
     }
     if (S.stage === 1 && S.dist >= cfg.len && !S.boss) spawnBoss();
     if (S.stage === 2 && S.dist >= cfg.len && !S.coreFight) spawnCoreFight();
+    if (S.stage === 3 && S.dist >= cfg.len && !S.walkerFight) spawnWalkerFight();
 
     /* rocks: stage 1 space + drift during end fights */
     S.rockT -= dt;
     let rockInterval = -1, rockVz = 0;
-    if (inFight){ rockInterval = (S.boss || S.coreFight) ? -1 : 0.9; rockVz = 20; }
+    if (inFight){ rockInterval = (S.boss || S.coreFight || S.walkerFight) ? -1 : 0.9; rockVz = 20; }
     else if (S.stage === 1) rockInterval = (S.dist > 1500 && S.dist < 3350) ? 0.42 : 1.5;
     if (rockInterval > 0 && S.rockT <= 0){
       S.rockT = rockInterval;
@@ -943,6 +1120,23 @@ function animate(){
         }
       }
     }
+    /* stage 3 walker: head is the weak point, hull is armored */
+    for (const sh of shots){
+      if (!S.walkerFight) break;
+      if (sh.z > 9000) continue;
+      const W = S.walkerFight, hz = W.wz + 7;
+      if (Math.abs(sh.z - hz) < 2.4 && Math.hypot(sh.x - W.swayX, sh.y - 8.2) < 2.6){
+        sh.z = 9999; W.hp--;
+        boom(sh.x, sh.y, hz + 1, 0xfb923c, 0.9);
+        pop('HIT!', '#fb923c', 18);
+        refreshHud();
+      } else if (sh.z < W.wz + 8 && sh.z > W.wz - 8 && Math.abs(sh.x - W.swayX) < 5.4 && sh.y > 0 && sh.y < 13){
+        sh.z = 9999;
+        boom(sh.x, sh.y, sh.z + 1, 0x9aa4b5, 0.35);
+        sndGuard();
+        if (S.guardPopT <= 0){ pop('NO DAMAGE', '#94a3b8', 17); S.guardPopT = 1.4; }
+      }
+    }
     shots = shots.filter(sh => { if (sh.z > 9000 || sh.z < S.pz - 210){ zapMesh(sh.mesh); return false; } return true; });
 
     /* foes */
@@ -1016,12 +1210,15 @@ function animate(){
     /* watchtowers: shoot back, block the corridor */
     for (const tw of towers){
       if (tw.dead) continue;
-      tw.shootT -= dt;
-      if (tw.shootT <= 0 && tw.z < S.pz - 12 && tw.z > S.pz - 140){ fireEbolt(tw.x + 0.9, 11.9, tw.z + 2.4, 34); tw.shootT = 1.5 + Math.random() * 0.7; }
-      if (!tw.hitDone && Math.abs(S.pz - tw.z) < 2.0 && Math.abs(S.px - tw.x) < 2.9){
+      if (tw.kind !== 'mesa'){
+        tw.shootT -= dt;
+        if (tw.shootT <= 0 && tw.z < S.pz - 12 && tw.z > S.pz - 140){ fireEbolt(tw.x + 0.9, 11.9, tw.z + 2.4, 34); tw.shootT = 1.5 + Math.random() * 0.7; }
+      }
+      const cr = tw.kind === 'mesa' ? 3.7 : 2.9;
+      if (!tw.hitDone && Math.abs(S.pz - tw.z) < 2.0 && Math.abs(S.px - tw.x) < cr){
         tw.hitDone = true;
         damage(15);
-        S.tx = THREE.MathUtils.clamp(tw.x + (S.px < tw.x ? -3.8 : 3.8), -cfg.bx, cfg.bx);
+        S.tx = THREE.MathUtils.clamp(tw.x + (S.px < tw.x ? -(cr + 0.9) : cr + 0.9), -cfg.bx, cfg.bx);
         if (S.mode !== 'playing') return;
       }
       if (tw.z > S.pz + 14){ tw.dead = true; zapMesh(tw.mesh); }
@@ -1167,7 +1364,45 @@ function animate(){
         pop('PORT DESTROYED! +3000', '#4ade80', 32);
         scene.remove(C.mesh); S.coreFight = null;
         refreshHud();
-        setTimeout(() => { if (S.mode === 'playing') startHyper('clear'); }, 1400);
+        setTimeout(() => { if (S.mode === 'playing') startHyper('stage3'); }, 1400);
+      }
+    }
+    if (S.walkerFight){
+      const W = S.walkerFight;
+      W.swayX = Math.sin(t * 0.25) * 2.5;
+      W.wz += 2.0 * dt;
+      W.mesh.position.set(W.swayX, Math.abs(Math.sin(t * 2.2)) * 0.35, W.wz);
+      const legPhase = [0, Math.PI, Math.PI, 0];
+      for (let li = 0; li < W.legs.length; li++) W.legs[li].rotation.x = Math.sin(t * 2.2 + legPhase[li]) * 0.38;
+      W.marker.position.y = 11.4 + Math.sin(t * 3.2) * 0.35;
+      W.fireT -= dt;
+      if (W.fireT <= 0){
+        fireEbolt(W.swayX - 1.2, 7.6, W.wz + 8, 36, -1.6, 0);
+        fireEbolt(W.swayX + 1.2, 7.6, W.wz + 8, 36, 1.6, 0);
+        fireEbolt(W.swayX, 8.4, W.wz + 8, 36, 0, 0);
+        W.fireT = 1.7;
+      }
+      W.foeT -= dt;
+      if (W.foeT <= 0){
+        spawnFoe('head', -3, 6, S.pz - 130);
+        spawnFoe('head', 3, 7, S.pz - 138);
+        W.foeT = 7.5;
+      }
+      if (W.wz > S.pz - 15){
+        damage(22);
+        boom(S.px, S.py, S.pz - 6, 0xfb923c, 2.2);
+        pop('STOMPED!', '#f87171', 26);
+        W.wz = S.pz - 55;
+        if (S.mode !== 'playing') return;
+      }
+      if (W.hp <= 0){
+        for (let i = 0; i < 9; i++) boom(W.swayX + (Math.random() - 0.5) * 10, 3 + Math.random() * 9, W.wz + (Math.random() - 0.5) * 10, i % 2 ? 0xfb923c : 0xfacc15, 2 + Math.random() * 1.8);
+        sndBoom(true);
+        S.score += 4000;
+        pop('WALKER DOWN! +4000', '#4ade80', 32);
+        scene.remove(W.mesh); S.walkerFight = null;
+        refreshHud();
+        setTimeout(() => { if (S.mode === 'playing') startHyper('clear'); }, 1500);
       }
     }
     refreshHud();
@@ -1194,6 +1429,8 @@ function animate(){
   } else dsGroup.visible = false;
   if (trench.visible) trench.position.z = S.pz + 20 + (S.dist % 270);
   trenchLight.intensity = trench.visible ? 0.5 : 0;
+  if (canyon.visible){ canyon.position.z = S.pz + 20 + (S.dist % 270); groundMesh.position.z = S.pz - 170; groundTex.offset.y = (S.dist / 6.667) % 1; sunMesh.position.set(S.px * 0.15 + 55, 46, S.pz - 250); }
+  canyonLight.intensity = canyon.visible ? 0.5 : 0;
 
   for (let i = booms.length - 1; i >= 0; i--){
     const b = booms[i]; b.t += dt;
