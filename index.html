@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SABER BREAKER 3D v1.3.3 RAIL</title>
+<title>SABER BREAKER 3D v1.4 RAIL</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#040110; font-family:'Hiragino Sans',sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -224,13 +224,6 @@ scene.add(trenchLight);
     const rside = i % 2 === 0 ? -1 : 1, ry = 3.5 + Math.random() * 4, rz = baseZ - 6 - Math.random() * 18;
     put(glows, li++, rside * 8.03, ry, rz, 0.15, 2.2 + Math.random() * 1.6, 3 + Math.random() * 2.5, 0x8f1d1d);
     put(glows, li++, rside * 8.04, ry, rz, 0.15, 1.1, 1.7, 0xff3524);
-    /* bridge across the trench every third segment */
-    if (i % 3 === 1){
-      const bz2 = baseZ - 8 - Math.random() * 14;
-      put(greebles, gi++, 0, 13.6, bz2, 19, 1.4, 2.6, grayHex(0.42, 0.6));
-      put(greebles, gi++, (Math.random() - 0.5) * 6, 12.4, bz2, 3.5, 1.0, 2.0, grayHex(0.42, 0.6));
-      put(glows, li++, 0, 12.85, bz2, 0.5, 0.18, 0.5, 0xff3b30);
-    }
     trench.add(seg); trenchSegs.push(seg);
   }
   greebles.count = gi; pipes.count = pi; glows.count = li;
@@ -330,6 +323,40 @@ function buildTurret(){
   g.add(base, dome);
   return g;
 }
+function buildBridge(level){
+  const cy = level === 'low' ? 3.1 : level === 'high' ? 9.8 : 6.4;
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x79838f, metalness: 0.4, roughness: 0.55 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x49505c, metalness: 0.4, roughness: 0.6 });
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(19.6, 1.7, 2.8), mat); beam.position.y = cy;
+  const block = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.6, 3.2), dark); block.position.y = cy;
+  const capL = new THREE.Mesh(new THREE.BoxGeometry(1.8, 3.6, 3.6), dark); capL.position.set(-8.7, cy, 0);
+  const capR = capL.clone(); capR.position.x = 8.7;
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
+  const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.3), lampMat); lamp.position.set(0, cy - 1.55, 1.2);
+  const lamp2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.3), lampMat); lamp2.position.set(-5.5, cy - 1.0, 1.45);
+  const lamp3 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.3), lampMat); lamp3.position.set(5.5, cy - 1.0, 1.45);
+  g.add(beam, block, capL, capR, lamp, lamp2, lamp3);
+  g.userData = { y0: cy - 1.3, y1: cy + 1.3, cy };
+  return g;
+}
+function buildTower(){
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x39404c, metalness: 0.45, roughness: 0.55 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x272d38, metalness: 0.45, roughness: 0.6 });
+  const col = new THREE.Mesh(new THREE.BoxGeometry(3.0, 13.6, 3.0), mat); col.position.y = 6.8;
+  const collar1 = new THREE.Mesh(new THREE.BoxGeometry(3.9, 1.1, 3.9), dark); collar1.position.y = 4.4;
+  const collar2 = collar1.clone(); collar2.position.y = 9.2;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.3, 4.5), dark); head.position.y = 12.7;
+  const eye = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.5, 0.25), new THREE.MeshBasicMaterial({ color: 0xff2a1a }));
+  eye.position.set(0, 12.9, 2.3);
+  const gunGeo = new THREE.CylinderGeometry(0.14, 0.14, 1.6, 6); gunGeo.rotateX(Math.PI / 2);
+  const gun = new THREE.Mesh(gunGeo, dark); gun.position.set(0.9, 11.9, 2.4);
+  const side1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.2, 1.1), dark); side1.position.set(1.8, 6.5, 0.4);
+  const side2 = side1.clone(); side2.position.set(-1.8, 8.2, -0.3);
+  g.add(col, collar1, collar2, head, eye, gun, side1, side2);
+  return g;
+}
 function buildBoss(){
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: 0x8b95a5, metalness: 0.5, roughness: 0.45 });
@@ -402,7 +429,7 @@ const S = {
   boss: null, bossHp: 0, bossMaxHp: 12, bossSwayX: 0, paused: false,
   coreFight: null, hyperT: 0, eventIdx: 0, rockT: 0,
 };
-let foes = [], shots = [], ebolts = [], rings = [], rocks = [], turrets = [], booms = [];
+let foes = [], shots = [], ebolts = [], rings = [], rocks = [], turrets = [], bridges = [], towers = [], booms = [];
 const $ = id => document.getElementById(id);
 function pop(text, color = '#fff', size = 28){
   const d = document.createElement('div');
@@ -447,13 +474,14 @@ const EVENTS1 = [
   { at: 3700, type: 'head', n: 6 },
 ];
 const EVENTS2 = [
-  { at: 150, type: 'turret', side: -1, y: 3 }, { at: 320, type: 'turret', side: 1, y: 8 },
-  { at: 500, type: 'turret2' }, { at: 680, type: 'ring', x: 0, y: 6 },
-  { at: 820, type: 'turret', side: -1, y: 8 }, { at: 1000, type: 'head', n: 3 },
-  { at: 1180, type: 'turret2' }, { at: 1360, type: 'ring', x: 2, y: 5 },
-  { at: 1480, type: 'vader' }, { at: 1700, type: 'head', n: 4 },
-  { at: 1900, type: 'turret2' }, { at: 2080, type: 'ring', x: -2, y: 8 },
-  { at: 2240, type: 'turret2' },
+  { at: 120, type: 'turret', side: -1, y: 3 }, { at: 260, type: 'bridge', level: 'low' },
+  { at: 420, type: 'turret', side: 1, y: 8 }, { at: 560, type: 'tower' },
+  { at: 720, type: 'turret2' }, { at: 880, type: 'bridge', level: 'mid' },
+  { at: 1020, type: 'head', n: 3 }, { at: 1180, type: 'ring', x: 0, y: 6 },
+  { at: 1300, type: 'tower' }, { at: 1480, type: 'vader' },
+  { at: 1700, type: 'head', n: 4 }, { at: 1840, type: 'bridge', level: 'high' },
+  { at: 1980, type: 'turret2' }, { at: 2100, type: 'tower' },
+  { at: 2240, type: 'bridge', level: 'mid' }, { at: 2360, type: 'turret2' },
 ];
 function spawnFoe(kind, x, y, z){
   const mesh = buildTie(kind === 'chase' ? 1.1 : 1.15);
@@ -470,6 +498,22 @@ function spawnTurret(side, y, zOff = 150){
   scene.add(mesh);
   turrets.push({ x, y, z, hp: 3, mesh, shootT: 1 + Math.random() * 1.5, dead: false });
 }
+function spawnBridge(level){
+  const mesh = buildBridge(level);
+  const z = S.pz - 165;
+  mesh.position.set(0, 0, z);
+  scene.add(mesh);
+  bridges.push({ z, y0: mesh.userData.y0, y1: mesh.userData.y1, cy: mesh.userData.cy, mesh, done: false, passed: false });
+  pop(level === 'low' ? '⚠ 橋 — 上を越えろ！' : level === 'high' ? '⚠ 橋 — 下をくぐれ！' : '⚠ 橋 — 上か下へ！', '#fb923c', 24);
+}
+function spawnTower(){
+  const mesh = buildTower();
+  const x = (Math.random() * 2 - 1) * 3.6, z = S.pz - 165;
+  mesh.position.set(x, 0, z);
+  scene.add(mesh);
+  towers.push({ x, z, hp: 5, mesh, shootT: 1.2 + Math.random(), hitDone: false, dead: false });
+  pop('⚠ 監視塔 — 左右に避けろ！', '#fb923c', 24);
+}
 function spawnEvent(ev){
   const z = S.pz - 165;
   if (ev.type === 'ring'){
@@ -485,6 +529,10 @@ function spawnEvent(ev){
       spawnFoe('head', (i - (ev.n - 1) / 2) * 4.2, 6.8 + ((i * 7) % 3) * 1.8, z - i * 9);
   } else if (ev.type === 'turret'){
     spawnTurret(ev.side, ev.y);
+  } else if (ev.type === 'bridge'){
+    spawnBridge(ev.level);
+  } else if (ev.type === 'tower'){
+    spawnTower();
   } else if (ev.type === 'vader'){
     const mesh = buildTie(1.3);
     mesh.children[2].rotation.y = 0.5; mesh.children[4].rotation.y = -0.5;
@@ -593,9 +641,11 @@ function clearEntities(){
   for (const b of shots) zapMesh(b.mesh);
   for (const b of ebolts) zapMesh(b.mesh);
   for (const u of turrets) scene.remove(u.mesh);
+  for (const b of bridges) zapMesh(b.mesh);
+  for (const tw of towers) zapMesh(tw.mesh);
   if (S.boss){ scene.remove(S.boss.mesh); S.boss = null; }
   if (S.coreFight){ scene.remove(S.coreFight.mesh); S.coreFight = null; }
-  foes = []; rings = []; rocks = []; shots = []; ebolts = []; turrets = [];
+  foes = []; rings = []; rocks = []; shots = []; ebolts = []; turrets = []; bridges = []; towers = [];
 }
 function startGame(){
   clearEntities();
@@ -803,6 +853,16 @@ function animate(){
         if (Math.abs(sh.z - r.z) < r.r && Math.hypot(sh.x - r.x, sh.y - r.y) < r.r){ sh.z = 9999; boom(sh.x, sh.y, sh.z + 1, 0xd6c8a8, 0.4); break; }
       }
       if (sh.z > 9000) continue;
+      for (const tw of towers){
+        if (tw.dead) continue;
+        if (Math.abs(sh.z - tw.z) < 2.0 && Math.abs(sh.x - tw.x) < 2.2 && sh.y < 13.8){
+          sh.z = 9999; tw.hp--;
+          boom(sh.x, sh.y, tw.z + 1, 0xfacc15, 0.5);
+          if (tw.hp <= 0){ tw.dead = true; zapMesh(tw.mesh); S.score += 200; S.hits++; pop('TOWER DOWN +200', '#facc15', 20); sndBoom(false); boom(tw.x, 7, tw.z, 0xfb923c, 1.7); refreshHud(); }
+          break;
+        }
+      }
+      if (sh.z > 9000) continue;
       /* boss weak points only */
       if (S.boss){
         const B = S.boss;
@@ -905,6 +965,37 @@ function animate(){
       if (u.z > S.pz + 12){ u.dead = true; scene.remove(u.mesh); }
     }
     turrets = turrets.filter(u => !u.dead);
+
+    /* watchtowers: shoot back, block the corridor */
+    for (const tw of towers){
+      if (tw.dead) continue;
+      tw.shootT -= dt;
+      if (tw.shootT <= 0 && tw.z < S.pz - 12 && tw.z > S.pz - 140){ fireEbolt(tw.x + 0.9, 11.9, tw.z + 2.4, 34); tw.shootT = 1.5 + Math.random() * 0.7; }
+      if (!tw.hitDone && Math.abs(S.pz - tw.z) < 2.0 && Math.abs(S.px - tw.x) < 2.9){
+        tw.hitDone = true;
+        damage(15);
+        S.tx = THREE.MathUtils.clamp(tw.x + (S.px < tw.x ? -3.8 : 3.8), -cfg.bx, cfg.bx);
+        if (S.mode !== 'playing') return;
+      }
+      if (tw.z > S.pz + 14){ tw.dead = true; zapMesh(tw.mesh); }
+    }
+    towers = towers.filter(tw => !tw.dead);
+
+    /* bridges: duck under, climb over, or crash */
+    for (const b of bridges){
+      if (!b.done && S.pz < b.z + 1.4 && S.pz > b.z - 2.4){
+        if (S.py + 0.65 > b.y0 && S.py - 0.65 < b.y1){
+          b.done = true;
+          boom(S.px, S.py, S.pz - 2, 0xfb923c, 1.2);
+          damage(14);
+          S.ty = THREE.MathUtils.clamp(S.py < b.cy ? b.y0 - 1.3 : b.y1 + 1.3, cfg.yMin, cfg.yMax);
+          if (S.mode !== 'playing') return;
+        }
+      }
+      if (S.pz < b.z - 2.4) b.done = true;
+      if (b.z > S.pz + 16){ b.passed = true; zapMesh(b.mesh); }
+    }
+    bridges = bridges.filter(b => !b.passed);
 
     /* enemy bolts */
     for (const b of ebolts){
